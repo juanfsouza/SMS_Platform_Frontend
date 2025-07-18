@@ -48,6 +48,9 @@ export default function ServiceSection() {
 
   const activeServiceData = services.find(service => service.id === activeService);
 
+  // Fallback para caso activeServiceData seja undefined
+  const currentService = activeServiceData || services[0];
+
   return (
     <div className="py-20 font-sans font-bold bg-gradient-to-br from-background via-muted/30 to-secondary/20 relative overflow-hidden">
       <div className="container mx-auto px-4">
@@ -95,19 +98,19 @@ export default function ServiceSection() {
           <div className="space-y-8">
             <div className="space-y-6">
               <h3 className="text-3xl lg:text-4xl font-bold text-foreground font-custom-bold">
-                {activeServiceData?.name}
+                {currentService.name}
               </h3>
               <p className="text-xl text-primary font-custom-bold">
-                {activeServiceData?.subtitle}
+                {currentService.subtitle}
               </p>
               <p className="text-lg text-muted-foreground leading-relaxed">
-                {activeServiceData?.description}
+                {currentService.description}
               </p>
             </div>
 
             {/* Features List */}
             <div className="space-y-4">
-              {activeServiceData?.features.map((feature, index) => (
+              {currentService.features.map((feature, index) => (
                 <div key={index} className="flex items-center gap-3 group">
                   <div className="w-6 h-6 bg-primary/10 rounded-full flex items-center justify-center group-hover:bg-primary/20 transition-colors">
                     <Icon icon="mdi:check" className="text-primary text-sm" />
@@ -153,10 +156,10 @@ export default function ServiceSection() {
                 <div className="flex items-center gap-3">
                   <Icon icon="mdi:arrow-left" className="text-gray-600" />
                   <div className="flex items-center gap-2">
-                    <div className={`w-8 h-8 ${activeServiceData?.color} rounded-lg flex items-center justify-center`}>
-                      <Icon icon={activeServiceData?.icon} className="text-white text-sm" />
+                    <div className={`w-8 h-8 ${currentService.color} rounded-lg flex items-center justify-center`}>
+                      <Icon icon={currentService.icon} className="text-white text-sm" />
                     </div>
-                    <span className="font-semibold text-gray-800">{activeServiceData?.mockup.title}</span>
+                    <span className="font-semibold text-gray-800">{currentService.mockup.title}</span>
                   </div>
                 </div>
                 <Icon icon="mdi:dots-vertical" className="text-gray-600" />
@@ -171,7 +174,7 @@ export default function ServiceSection() {
                     <span className="text-xs text-gray-500">Hoje 14:30</span>
                   </div>
                   <p className="text-gray-800 leading-relaxed">
-                    {activeServiceData?.mockup.content}
+                    {currentService.mockup.content}
                   </p>
                 </div>
 
