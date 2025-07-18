@@ -1,0 +1,64 @@
+'use client';
+
+import { useSearchParams } from 'next/navigation';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import api from '@/lib/api';
+import { toast } from 'sonner';
+
+export default function ConfirmEmailPage() {
+  const searchParams = useSearchParams();
+  const token = searchParams.get('token');
+  const router = useRouter();
+
+  useEffect(() => {
+    const confirmEmail = async () => {
+      if (!token) {
+        toast.error('Token inválido.', {
+          style: {
+            background: 'oklch(0.6368 0.2078 25.3313)',
+            color: 'oklch(1.0000 0 0)',
+            border: 'none',
+            borderRadius: '8px',
+            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+          },
+          duration: 3000,
+          position: 'top-right',
+        });
+        router.push('/auth/login');
+        return;
+      }
+      try {
+        await api.get(`/auth/confirm-email?token=${token}`);
+        toast.success('E-mail confirmado! Você pode fazer login agora.', {
+          style: {
+            background: 'oklch(0.6171 0.1375 39.0427)',
+            color: 'oklch(1.0000 0 0)',
+            border: 'none',
+            borderRadius: '8px',
+            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+          },
+          duration: 3000,
+          position: 'top-right',
+        });
+        router.push('/auth/login');
+      } catch (error) {
+        toast.error('Erro ao confirmar e-mail. Tente novamente.', {
+          style: {
+            background: 'oklch(0.6368 0.2078 25.3313)',
+            color: 'oklch(1.0000 0 0)',
+            border: 'none',
+            borderRadius: '8px',
+            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+          },
+          duration: 3000,
+          position: 'top-right',
+        });
+        router.push('/auth/login');
+      }
+    };
+    confirmEmail();
+  }, [token, router]);
+
+  return <div className="min-h-screen flex items-center justify-center">Confirmando e-mail...</div>;
+}
