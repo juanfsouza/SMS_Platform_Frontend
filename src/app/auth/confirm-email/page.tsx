@@ -5,8 +5,17 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import { toast } from 'sonner';
+import { Suspense } from 'react';
 
 export default function ConfirmEmailPage() {
+  return (
+    <Suspense>
+      <ConfirmEmailContent />
+    </Suspense>
+  );
+}
+
+function ConfirmEmailContent() {
   const searchParams = useSearchParams();
   const token = searchParams.get('token');
   const router = useRouter();
@@ -42,7 +51,7 @@ export default function ConfirmEmailPage() {
           position: 'top-right',
         });
         router.push('/auth/login');
-      } catch (error) {
+      } catch {
         toast.error('Erro ao confirmar e-mail. Tente novamente.', {
           style: {
             background: 'oklch(0.6368 0.2078 25.3313)',

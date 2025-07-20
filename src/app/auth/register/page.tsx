@@ -8,21 +8,11 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useAuthStore } from '@/stores/auth';
 import { toast, Toaster } from 'sonner';
 import api from '@/lib/api';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-
-const decodeToken = (token: string) => {
-  try {
-    const payload = token.split('.')[1];
-    return JSON.parse(atob(payload));
-  } catch (error) {
-    console.error('Failed to decode token:', error);
-    return null;
-  }
-};
+import { Suspense } from 'react';
 
 const registerSchema = z.object({
   name: z.string().min(2, 'O nome deve ter pelo menos 2 caracteres'),
@@ -34,12 +24,19 @@ const registerSchema = z.object({
 type RegisterForm = z.infer<typeof registerSchema>;
 
 export default function RegisterPage() {
+  return (
+    <Suspense>
+      <RegisterContent />
+    </Suspense>
+  );
+}
+
+function RegisterContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { setUser } = useAuthStore();
   const [isLoading, setIsLoading] = useState(false);
 
-  const { register, handleSubmit, formState: { errors }, setValue } = useForm<RegisterForm>({
+  const { register, handleSubmit, formState: { errors } } = useForm<RegisterForm>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
       affiliateCode: searchParams.get('aff') || '',
@@ -49,7 +46,7 @@ export default function RegisterPage() {
   const onSubmit = async (data: RegisterForm) => {
     setIsLoading(true);
     try {
-      const response = await api.post('/auth/register', data);
+      await api.post('/auth/register', data);
       toast.success('Usuário registrado com sucesso! Verifique seu e-mail para confirmar.', {
         style: {
           background: 'oklch(0.6171 0.1375 39.0427)',
@@ -63,7 +60,7 @@ export default function RegisterPage() {
       setTimeout(() => {
         router.push('/auth/login');
       }, 5000);
-    } catch (error) {
+    } catch {
       toast.error('Falha no registro: Email já existe ou erro interno.', {
         style: {
           background: 'oklch(0.6368 0.2078 25.3313)',
@@ -80,10 +77,10 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center font-custom-bold justify-center bg-gradient-to-br from-secondary-100 to-secondary-foreground-100">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-secondary-100 to-secondary-foreground-100">
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader>
-          <CardTitle className="text-3xl font-bold text-center text-gray-800">Registrar</CardTitle>
+          <CardTitle className="text-3xl font-bold font-custom-bold text-center text-gray-800">Registrar</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">

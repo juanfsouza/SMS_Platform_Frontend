@@ -12,7 +12,7 @@ export default function AboutSection() {
       name: 'Facebook', 
       icon: 'mdi:facebook', 
       color: 'bg-blue-500',
-      description: 'Mensagens de texto tradicionais com alta taxa de entrega'
+      description: 'Mensagens de texto tradicionais com alta taxa de entrega',
     },
     { 
       id: 'WhatsApp', 
@@ -159,7 +159,7 @@ export default function AboutSection() {
               {/* Channel Selection */}
               <div className="space-y-4 mb-8">
                 <h4 className="text-lg font-semibold text-foreground">Serviços</h4>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                   {channels.map((channel) => (
                     <button
                       key={channel.id}

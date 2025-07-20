@@ -11,14 +11,32 @@ import api from '@/lib/api';
 import { toast, Toaster } from 'sonner';
 import Navbar from '@/components/Navbar';
 
+// Definição do tipo Price
+interface Price {
+  service: string;
+  country: string;
+  priceBrl: number;
+  priceUsd: number;
+}
+
+// Definição do tipo User
+interface User {
+  id: number;
+  email: string;
+  name: string;
+  balance: number;
+  affiliateBalance: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export default function AdminConfigPage() {
   const { user } = useAuthStore();
   const router = useRouter();
-  const [users, setUsers] = useState([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [markup, setMarkup] = useState(0);
   const [prices, setPrices] = useState<Price[]>([]);
   const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(1);
   const limit = 10;
 
   useEffect(() => {
@@ -38,8 +56,8 @@ export default function AdminConfigPage() {
         setMarkup(markupResponse.data.percentage);
         setPrices(pricesResponse.data);
         setLoading(false);
-      } catch (error) {
-        console.error('Error fetching data:', error);
+      } catch {
+        console.error('Error fetching data');
         toast.error('Falha ao carregar dados de configuração', {
           style: {
             background: 'oklch(0.6368 0.2078 25.3313)',
@@ -72,7 +90,7 @@ export default function AdminConfigPage() {
         duration: 3000,
         position: 'top-right',
       });
-    } catch (error) {
+    } catch {
       toast.error('Falha ao atualizar markup', {
         style: {
           background: 'oklch(0.6368 0.2078 25.3313)',
@@ -104,7 +122,7 @@ export default function AdminConfigPage() {
         duration: 3000,
         position: 'top-right',
       });
-    } catch (error) {
+    } catch {
       toast.error('Falha ao atualizar preços', {
         style: {
           background: 'oklch(0.6368 0.2078 25.3313)',
@@ -136,7 +154,7 @@ export default function AdminConfigPage() {
       });
       const updatedUsers = await api.get('/users', { headers: { Authorization: `Bearer ${user.token}` } });
       setUsers(updatedUsers.data);
-    } catch (error) {
+    } catch {
       toast.error('Falha ao adicionar saldo', {
         style: {
           background: 'oklch(0.6368 0.2078 25.3313)',
@@ -168,7 +186,7 @@ export default function AdminConfigPage() {
       });
       const updatedUsers = await api.get('/users', { headers: { Authorization: `Bearer ${user.token}` } });
       setUsers(updatedUsers.data);
-    } catch (error) {
+    } catch {
       toast.error('Falha ao atualizar saldo', {
         style: {
           background: 'oklch(0.6368 0.2078 25.3313)',
@@ -200,7 +218,7 @@ export default function AdminConfigPage() {
       });
       const updatedUsers = await api.get('/users', { headers: { Authorization: `Bearer ${user.token}` } });
       setUsers(updatedUsers.data);
-    } catch (error) {
+    } catch {
       toast.error('Falha ao resetar saldo', {
         style: {
           background: 'oklch(0.6368 0.2078 25.3313)',
@@ -212,44 +230,6 @@ export default function AdminConfigPage() {
         duration: 3000,
         position: 'top-right',
       });
-    }
-  };
-
-  const handleLoadMore = async () => {
-    setLoading(true);
-    if (!user?.token) {
-      toast.error('Usuário não autenticado', {
-        style: {
-          background: 'oklch(0.6368 0.2078 25.3313)',
-          color: 'oklch(1.0000 0 0)',
-          border: 'none',
-          borderRadius: '8px',
-          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-        },
-        duration: 3000,
-        position: 'top-right',
-      });
-      return;
-    }
-    try {
-      const nextPage = page + 1;
-      const response = await api.get('/credits/prices', { headers: { Authorization: `Bearer ${user.token}` }, params: { limit, offset: (nextPage - 1) * limit } });
-      setPrices((prevPrices: Price[]) => [...prevPrices, ...response.data]);
-      setPage(nextPage);
-    } catch (error) {
-      toast.error('Falha ao carregar mais preços', {
-        style: {
-          background: 'oklch(0.6368 0.2078 25.3313)',
-          color: 'oklch(1.0000 0 0)',
-          border: 'none',
-          borderRadius: '8px',
-          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-        },
-        duration: 3000,
-        position: 'top-right',
-      });
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -280,7 +260,7 @@ export default function AdminConfigPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {users.map((user: any) => (
+              {users.map((user: User) => (
                 <TableRow key={user.id}>
                   <TableCell>{user.id}</TableCell>
                   <TableCell>{user.email}</TableCell>

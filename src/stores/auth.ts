@@ -19,16 +19,21 @@ interface AuthState {
 }
 
 export const useAuthStore = create<AuthState>((set) => {
-  const savedUser = localStorage.getItem('authUser');
-  const initialUser = savedUser ? (JSON.parse(savedUser) as User) : null;
+  let initialUser: User | null = null;
+  if (typeof window !== 'undefined') {
+    const savedUser = localStorage.getItem('authUser');
+    initialUser = savedUser ? (JSON.parse(savedUser) as User) : null;
+  }
 
   return {
     user: initialUser,
     setUser: (user) => {
-      if (user) {
-        localStorage.setItem('authUser', JSON.stringify(user));
-      } else {
-        localStorage.removeItem('authUser');
+      if (typeof window !== 'undefined') {
+        if (user) {
+          localStorage.setItem('authUser', JSON.stringify(user));
+        } else {
+          localStorage.removeItem('authUser');
+        }
       }
       set({ user });
     },

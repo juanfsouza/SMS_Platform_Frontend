@@ -208,7 +208,7 @@ export default function ChannelsSection() {
                 Como funciona o nosso serviço?
               </h2>
               <p className="text-lg text-muted-foreground max-w-4xl mx-auto">
-                O serviço de Mnesagens permite receber SMS online ou passar na verificação
+                O serviço de mensagens permite receber SMS online ou passar na verificação
                  ligando para um número que não está de forma alguma conectado a você, 
                  sua localização ou dados do passaporte. Não é necessário comprar um cartão SIM, use um número de telefone virtual para enviar SMS e obtenha um código de confirmação no site do Plataforma de SMS.
               </p>
@@ -217,7 +217,7 @@ export default function ChannelsSection() {
             {/* Channels Grid */}
             <div className="flex justify-center">
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-8">
-                {channels.map((channel, index) => (
+                {channels.map((channel) => (
                   <div key={channel.id} className="group">
                     <div className="text-center space-y-4">
                       <div className={`w-20 h-20 ${channel.color} rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-all duration-300 mx-auto`}>

@@ -1,5 +1,13 @@
 import { create } from 'zustand';
 
+// Definição do tipo PriceData
+interface PriceData {
+  service: string;
+  country: string;
+  priceBrl: number;
+  priceUsd: number;
+}
+
 interface PriceState {
   popularPrices: PriceData[];
   setPopularPrices: (prices: PriceData[]) => void;

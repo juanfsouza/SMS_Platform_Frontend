@@ -87,7 +87,7 @@ export default function LoginPage() {
         duration: 5000,
       });
       router.push('/dashboard');
-    } catch (error) {
+    } catch {
       toast.error('Falha no login: Credenciais inválidas', {
         style: {
           background: 'oklch(0.6368 0.2078 25.3313)',
@@ -104,10 +104,10 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center font-custom-bold justify-center bg-gradient-to-br from-secondary-100 to-secondary-foreground-100">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-secondary-100 to-secondary-foreground-100">
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader>
-          <CardTitle className="text-3xl font-bold text-center text-gray-800">Login</CardTitle>
+          <CardTitle className="text-3xl font-bold font-custom-bold text-center text-gray-800">Login</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">

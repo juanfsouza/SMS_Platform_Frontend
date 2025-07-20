@@ -1,7 +1,6 @@
 "use client";
 
 import { Icon } from '@iconify/react';
-import Image from 'next/image';
 
 export default function FooterSection() {
   const socialLinks = [
@@ -68,8 +67,8 @@ export default function FooterSection() {
                 <Icon icon="mdi:message-text" className="text-primary-foreground text-xl" />
               </div>
               <div>
-                <h3 className="font-custom-bold text-2xl text-foreground">SMS Plataforma</h3>
-                <p className="text-sm text-muted-foreground">SMS Platform</p>
+                <h3 className="font-custom-bold text-2xl text-foreground">FDX SMS</h3>
+                <p className="text-sm text-muted-foreground">Plataforma de SMS</p>
               </div>
             </div>
             
