@@ -15,6 +15,7 @@ import { POPULAR_SERVICES, SERVICE_NAME_MAP } from '@/data/services';
 import { debounce } from 'lodash';
 import { getName } from 'country-list';
 import { PurchaseModal } from '@/components/PurchaseModal';
+import DepositForm from '@/components/DepositForm';
 
 interface PriceData {
   service: string;
@@ -434,6 +435,26 @@ export default function DashboardPage() {
               ) : (
                 <p className="text-muted-foreground">Nenhum link de afiliado disponível</p>
               )}
+            </CardContent>
+          </Card>
+
+          <Card className="mb-12 border-0 bg-gradient-to-r from-card to-card/80 shadow-lg">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-3 text-xl">
+                <div className="p-2 rounded-lg bg-green-100">
+                  <CreditCard className="w-5 h-5 text-green-600" />
+                </div>
+                Faça sua Recarga
+                <div className="px-3 py-1 rounded-full bg-green-100 text-green-600 text-xs font-semibold">
+                  Adicionar Créditos
+                </div>
+              </CardTitle>
+              <p className="text-sm text-muted-foreground mt-2">
+                Adicione créditos à sua conta via PIX
+              </p>
+            </CardHeader>
+            <CardContent>
+              <DepositForm userId={user.id} />
             </CardContent>
           </Card>
 

@@ -40,7 +40,7 @@ export default function AdminConfigPage() {
   const limit = 10;
 
   useEffect(() => {
-    if (!user || user.role !== 'ADMIN') {
+    if (!user || user.role !== 'admin') {
       router.push('/');
       return;
     }

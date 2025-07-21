@@ -124,7 +124,7 @@ export default function Navbar() {
                           <p className={`text-xs mt-1 ${
                             isScrolled ? 'text-muted-foreground' : 'text-white/70'
                           }`}>
-                            {user.role === 'ADMIN' ? 'Administrador' : 'Usuário'}
+                            {user.role === 'admin' ? 'Administrador' : 'Usuário'}
                           </p>
                         </div>
                         
@@ -151,7 +151,7 @@ export default function Navbar() {
                       <div className="px-3 py-2 border-b border-border/50 mb-2">
                         <p className="text-sm font-medium text-foreground">{user.name}</p>
                         <p className="text-xs text-muted-foreground">
-                          {user.role === 'ADMIN' ? 'Administrador' : 'Usuário'}
+                          {user.role === 'admin' ? 'Administrador' : 'Usuário'}
                         </p>
                       </div>
                       
@@ -169,7 +169,7 @@ export default function Navbar() {
                         </Link>
                       </DropdownMenuItem>
                       
-                      {user?.role === 'ADMIN' && (
+                      {user?.role === 'admin' && (
                         <DropdownMenuItem asChild className="rounded-lg">
                           <Link href="/admin/config" className="flex items-center px-3 py-2 cursor-pointer">
                             <Settings className="mr-3 h-4 w-4 text-muted-foreground" />

@@ -1,6 +1,5 @@
 import axios, { AxiosInstance } from 'axios';
 import { useAuthStore } from '@/stores/auth';
-import { useRouter } from 'next/navigation';
 
 const api: AxiosInstance = axios.create({
   baseURL: 'http://localhost:3000',
@@ -35,7 +34,6 @@ api.interceptors.response.use(
   (error) => {
     console.error('API Error:', error.response?.data || error.message);
     if (error.response?.status === 401) {
-      // Clear user state and redirect to login
       useAuthStore.getState().setUser(null);
       if (typeof window !== 'undefined') {
         window.location.href = '/auth/login';
