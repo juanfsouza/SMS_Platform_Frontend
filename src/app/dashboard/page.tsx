@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
@@ -10,7 +10,8 @@ import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import api from '@/lib/api';
 import { Copy, Wallet, TrendingUp, Star, Globe, Sparkles, CreditCard, Loader2, MessageSquare } from 'lucide-react';
-import { COUNTRY_ID_TO_ISO, ServiceList } from '@/components/ServiceList';
+import { ServiceList } from '@/components/ServiceList';
+import { COUNTRY_ID_TO_ISO } from '@/data/countryMapping';
 import { POPULAR_SERVICES, SERVICE_NAME_MAP } from '@/data/services';
 import { debounce } from 'lodash';
 import { getName } from 'country-list';
@@ -34,6 +35,15 @@ interface Activation {
   createdAt: number;
   status: string | null;
   code: string | null;
+}
+
+interface ApiError extends Error {
+  response?: {
+    status: number;
+    data?: {
+      message?: string;
+    };
+  };
 }
 
 export default function DashboardPage() {
@@ -77,10 +87,15 @@ export default function DashboardPage() {
         )
       ).sort() as string[];
       setAllServices(services);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error fetching all services:', error);
-      if (error.response?.status === 401) {
-        handleUnauthorized();
+      if (error instanceof Error && 'response' in error) {
+        const apiError = error as ApiError;
+        if (apiError.response?.status === 401) {
+          handleUnauthorized();
+        } else {
+          toast.error('Falha ao carregar lista de serviços');
+        }
       } else {
         toast.error('Falha ao carregar lista de serviços');
       }
@@ -97,15 +112,20 @@ export default function DashboardPage() {
         const newPrices = response.data;
         setAllPrices((prev) => [...prev, ...newPrices]);
         setHasMore(newPrices.length === limit);
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('Error fetching all prices:', error);
-        if (error.response?.status === 401) {
-          handleUnauthorized();
+        if (error instanceof Error && 'response' in error) {
+          const apiError = error as ApiError;
+          if (apiError.response?.status === 401) {
+            handleUnauthorized();
+          } else {
+            const message = apiError.response?.status === 429
+              ? 'Muitas requisições. Tente novamente em alguns segundos.'
+              : 'Falha ao carregar preços dos serviços';
+            toast.error(message);
+          }
         } else {
-          const message = error.response?.status === 429
-            ? 'Muitas requisições. Tente novamente em alguns segundos.'
-            : 'Falha ao carregar preços dos serviços';
-          toast.error(message);
+          toast.error('Falha ao carregar preços dos serviços');
         }
       } finally {
         setIsLoadingAllPrices(false);
@@ -124,19 +144,29 @@ export default function DashboardPage() {
         POPULAR_SERVICES.includes(item.service)
       );
       setPopularPrices(filteredPrices);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error fetching popular prices:', error);
-      if (error.response?.status === 401) {
-        handleUnauthorized();
+      if (error instanceof Error && 'response' in error) {
+        const apiError = error as ApiError;
+        if (apiError.response?.status === 401) {
+          handleUnauthorized();
+        } else {
+          toast.error('Falha ao carregar preços dos serviços populares');
+          try {
+            const fallbackResponse = await api.get<PriceData[]>('/credits/prices/filter', {
+              params: { limit: 204 * POPULAR_SERVICES.length },
+            });
+            const fallbackPrices = fallbackResponse.data.filter((item: PriceData) =>
+              POPULAR_SERVICES.includes(item.service)
+            );
+            setPopularPrices(fallbackPrices);
+          } catch (fallbackError: unknown) {
+            console.error('Error fetching fallback prices:', fallbackError);
+            toast.error('Falha ao carregar preços de fallback');
+          }
+        }
       } else {
         toast.error('Falha ao carregar preços dos serviços populares');
-        const fallbackResponse = await api.get<PriceData[]>('/credits/prices/filter', {
-          params: { limit: 204 * POPULAR_SERVICES.length },
-        });
-        const fallbackPrices = fallbackResponse.data.filter((item: PriceData) =>
-          POPULAR_SERVICES.includes(item.service)
-        );
-        setPopularPrices(fallbackPrices);
       }
     } finally {
       setIsLoadingPopularPrices(false);
@@ -146,7 +176,7 @@ export default function DashboardPage() {
   const fetchRecentActivations = useCallback(async () => {
     if (!user) return;
     try {
-      const response = await api.get('/sms/activations/recent', {
+      const response = await api.get<Activation[]>('/sms/activations/recent', {
         headers: { Authorization: `Bearer ${user.token}` },
       });
       const fetchedActivations = response.data;
@@ -155,15 +185,20 @@ export default function DashboardPage() {
         (activation: Activation) => activation.createdAt + MAX_ACTIVATION_AGE > Date.now()
       );
       setHasActivePolling(hasActive);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error fetching recent activations:', error);
-      if (error.response?.status === 401) {
-        handleUnauthorized();
+      if (error instanceof Error && 'response' in error) {
+        const apiError = error as ApiError;
+        if (apiError.response?.status === 401) {
+          handleUnauthorized();
+        } else {
+          toast.error('Falha ao carregar ativações recentes');
+        }
       } else {
         toast.error('Falha ao carregar ativações recentes');
       }
     }
-  }, [user, handleUnauthorized]);
+  }, [user, handleUnauthorized, MAX_ACTIVATION_AGE]);
 
   const handlePurchase = useCallback(
     async (service: string, countryId: string) => {
@@ -195,10 +230,15 @@ export default function DashboardPage() {
         setSelectedActivation(newActivation);
         setHasActivePolling(true);
         return { activationId, phoneNumber, creditsSpent };
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('Purchase error:', error);
-        if (error.response?.status === 401) {
-          handleUnauthorized();
+        if (error instanceof Error && 'response' in error) {
+          const apiError = error as ApiError;
+          if (apiError.response?.status === 401) {
+            handleUnauthorized();
+          } else {
+            toast.error('Falha ao realizar a compra');
+          }
         } else {
           toast.error('Falha ao realizar a compra');
         }
@@ -244,10 +284,15 @@ export default function DashboardPage() {
             affiliateLink: newAffiliateLink,
           });
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('Error fetching user data:', error);
-        if (error.response?.status === 401) {
-          handleUnauthorized();
+        if (error instanceof Error && 'response' in error) {
+          const apiError = error as ApiError;
+          if (apiError.response?.status === 401) {
+            handleUnauthorized();
+          } else {
+            toast.error('Falha ao carregar dados do usuário');
+          }
         } else {
           toast.error('Falha ao carregar dados do usuário');
         }
@@ -261,14 +306,14 @@ export default function DashboardPage() {
     fetchAllServices();
     fetchAllPrices();
     fetchRecentActivations();
-  }, [user, router, setUser, page, fetchAllPrices, fetchAllServices, fetchPopularPrices, fetchRecentActivations, handleUnauthorized]);
+  }, [user, router, setUser, fetchAllPrices, fetchAllServices, fetchPopularPrices, fetchRecentActivations, handleUnauthorized]);
 
   useEffect(() => {
     if (!user || !hasActivePolling) return;
 
     const interval = setInterval(async () => {
       try {
-        const response = await api.get('/sms/activations/recent', {
+        const response = await api.get<Activation[]>('/sms/activations/recent', {
           headers: { Authorization: `Bearer ${user.token}` },
         });
         const fetchedActivations = response.data;
@@ -279,16 +324,19 @@ export default function DashboardPage() {
         if (!hasActive) {
           setHasActivePolling(false);
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('Error updating recent activations:', error);
-        if (error.response?.status === 401) {
-          handleUnauthorized();
+        if (error instanceof Error && 'response' in error) {
+          const apiError = error as ApiError;
+          if (apiError.response?.status === 401) {
+            handleUnauthorized();
+          }
         }
       }
     }, 60000);
 
     return () => clearInterval(interval);
-  }, [user, hasActivePolling, handleUnauthorized]);
+  }, [user, hasActivePolling, handleUnauthorized, MAX_ACTIVATION_AGE]);
 
   const loadMore = () => {
     setPage((prev) => prev + 1);
@@ -454,7 +502,7 @@ export default function DashboardPage() {
               </p>
             </CardHeader>
             <CardContent>
-              <DepositForm userId={user.id} />
+              <DepositForm />
             </CardContent>
           </Card>
 

@@ -18,7 +18,6 @@ export const usePageLoading = ({
   const [fadeOut, setFadeOut] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState(0);
 
-  // Simula progresso de carregamento
   useEffect(() => {
     const progressInterval = setInterval(() => {
       setLoadingProgress(prev => {

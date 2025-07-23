@@ -17,7 +17,6 @@ import { Eye, EyeOff, Mail, Lock, LogIn, Loader2 } from 'lucide-react';
 import { Icon } from '@iconify/react';
 import { motion } from 'framer-motion';
 
-// Utility to decode JWT
 const decodeToken = (token: string) => {
   try {
     const payload = token.split('.')[1];

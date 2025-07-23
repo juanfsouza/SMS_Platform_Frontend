@@ -11,7 +11,6 @@ interface PageLoaderProps {
 }
 
 export default function PageLoader({ 
-  onLoadComplete,
   fadeOut = false,
   showProgress = false,
   progress = 0,

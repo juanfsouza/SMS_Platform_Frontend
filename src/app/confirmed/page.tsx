@@ -33,7 +33,7 @@ const Confirmed: React.FC = () => {
           balance: balanceResponse.data.balance,
           affiliateBalance: balanceResponse.data.affiliateBalance,
         });
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('Error fetching balance:', error);
         toast.error('Falha ao atualizar saldo');
       }
@@ -46,7 +46,7 @@ const Confirmed: React.FC = () => {
     }, 7000);
 
     return () => clearTimeout(redirectTimer);
-  }, []);
+  }, [user, setUser, router]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-secondary/20 to-primary/5 flex items-center justify-center py-12">

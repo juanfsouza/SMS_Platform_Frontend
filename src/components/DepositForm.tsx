@@ -1,6 +1,8 @@
-// components/DepositForm.tsx
+"use client";
+
 import React, { useState, FormEvent } from 'react';
 import axios from 'axios';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -10,10 +12,8 @@ import { Copy } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth';
 import { useRouter } from 'next/navigation';
 
-interface DepositFormProps {
-  userId: number;
-}
 
+type DepositFormProps = Record<string, never>;
 interface CheckoutResponse {
   transactionId: string;
   qrCode: string;
@@ -23,7 +23,15 @@ interface CheckoutResponse {
   disclaimer: string;
 }
 
-const DepositForm: React.FC<DepositFormProps> = ({ userId }) => {
+interface ApiError extends Error {
+  response?: {
+    data?: {
+      message?: string;
+    };
+  };
+}
+
+const DepositForm: React.FC<DepositFormProps> = () => {
   const { user } = useAuthStore();
   const router = useRouter();
   const [amount, setAmount] = useState<string>('');
@@ -74,10 +82,12 @@ const DepositForm: React.FC<DepositFormProps> = ({ userId }) => {
       setDisclaimer(disclaimer);
 
       toast.success('Pagamento gerado com sucesso! Escaneie o QR Code.');
-      // Polling para verificar status
       pollPaymentStatus(transactionId);
-    } catch (err: any) {
-      const errorMessage = err.response?.data?.message || 'Falha ao gerar pagamento';
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error && 'response' in error
+          ? (error as ApiError).response?.data?.message || 'Falha ao gerar pagamento'
+          : 'Falha ao gerar pagamento';
       setError(errorMessage);
       toast.error(errorMessage);
     } finally {
@@ -86,39 +96,39 @@ const DepositForm: React.FC<DepositFormProps> = ({ userId }) => {
   };
 
   const pollPaymentStatus = async (transactionId: string) => {
-  if (!user || !user.token) {
-    setError('Usuário não autenticado');
-    return;
-  }
-
-  const checkStatus = async () => {
-    try {
-      const response = await axios.get<{ status: string; localStatus?: string }>(
-        `${API_BASE_URL}/payments/transactions/${transactionId}`,
-        {
-          headers: { Authorization: `Bearer ${user.token}` },
-        }
-      );
-
-      const { status, localStatus } = response.data;
-
-      if (status === 'paid' || localStatus === 'COMPLETED') {
-        toast.success('Pagamento confirmado! Redirecionando...');
-        router.push('/confirmed'); // Redireciona para a nova página
-      } else if (status === 'expired' || localStatus === 'EXPIRED') {
-        setError('Transação expirada ou não encontrada');
-        toast.error('Transação expirada ou não encontrada');
-      } else {
-        setTimeout(checkStatus, 10000); // Verifica a cada 10 segundos
-      }
-    } catch (err: any) {
-      setError('Falha ao verificar status do pagamento');
-      toast.error('Falha ao verificar status do pagamento');
+    if (!user || !user.token) {
+      setError('Usuário não autenticado');
+      return;
     }
-  };
 
-  setTimeout(checkStatus, 5000); // Inicia após 5 segundos
-};
+    const checkStatus = async () => {
+      try {
+        const response = await axios.get<{ status: string; localStatus?: string }>(
+          `${API_BASE_URL}/payments/transactions/${transactionId}`,
+          {
+            headers: { Authorization: `Bearer ${user.token}` },
+          }
+        );
+
+        const { status, localStatus } = response.data;
+
+        if (status === 'paid' || localStatus === 'COMPLETED') {
+          toast.success('Pagamento confirmado! Redirecionando...');
+          router.push('/confirmed');
+        } else if (status === 'expired' || localStatus === 'EXPIRED') {
+          setError('Transação expirada ou não encontrada');
+          toast.error('Transação expirada ou não encontrada');
+        } else {
+          setTimeout(checkStatus, 10000); // Verifica a cada 10 segundos
+        }
+      } catch {
+        setError('Falha ao verificar status do pagamento');
+        toast.error('Falha ao verificar status do pagamento');
+      }
+    };
+
+    setTimeout(checkStatus, 5000); // Inicia após 5 segundos
+  };
 
   const copyToClipboard = () => {
     if (qrCode) {
@@ -203,10 +213,12 @@ const DepositForm: React.FC<DepositFormProps> = ({ userId }) => {
                 Escaneie o QR Code ou copie o código PIX:
               </p>
               <div className="flex justify-center">
-                <img
+                <Image
                   src={qrCodeBase64}
                   alt="PIX QR Code"
-                  className="max-w-[200px] rounded-lg border border-border/50"
+                  width={200}
+                  height={200}
+                  className="rounded-lg border border-border/50"
                 />
               </div>
             </div>

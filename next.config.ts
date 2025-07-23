@@ -18,7 +18,7 @@ const nextConfig = {
     return [
       {
         source: '/api/:path*',
-        destination: 'http://localhost:3000/:path*', // Sua API NestJS
+        destination: 'http://localhost:3000/:path*',
       },
     ];
   },

@@ -21,14 +21,12 @@ export default function Navbar() {
     const handleScroll = () => {
       const currentScrollY = window.scrollY;
       
-      // Hide/show navbar based on scroll direction
       if (currentScrollY > lastScrollY && currentScrollY > 100) {
         setIsVisible(false);
       } else {
         setIsVisible(true);
       }
       
-      // Add background blur when scrolled
       setIsScrolled(currentScrollY > 20);
       setLastScrollY(currentScrollY);
     };

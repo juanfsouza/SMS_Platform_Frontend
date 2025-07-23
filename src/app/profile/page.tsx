@@ -1,34 +1,57 @@
-'use client';
+"use client";
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuthStore } from '@/stores/auth';
 import Navbar from '@/components/Navbar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { toast } from 'sonner';
+import { toast, Toaster } from 'sonner';
 import api from '@/lib/api';
 import { 
   Copy, 
   User, 
   Mail, 
-  Wallet, 
   TrendingUp, 
   Link2, 
   CheckCircle2,
   Sparkles,
   CreditCard,
-  DollarSign
+  Wallet,
 } from 'lucide-react';
 import { motion, Variants } from 'framer-motion';
+
+// Schema for withdrawal form validation
+const withdrawalSchema = z.object({
+  amount: z.number()
+    .min(50, 'O valor mínimo para saque é R$ 50')
+    .positive('O valor deve ser positivo'),
+  pixKey: z.string()
+    .min(1, 'A chave PIX é obrigatória')
+    .max(140, 'A chave PIX não pode exceder 140 caracteres'),
+});
+
+type WithdrawalForm = z.infer<typeof withdrawalSchema>;
 
 export default function ProfilePage() {
   const { user, setUser } = useAuthStore();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  // Form for withdrawal request
+  const { register, handleSubmit, formState: { errors }, reset } = useForm<WithdrawalForm>({
+    resolver: zodResolver(withdrawalSchema),
+    defaultValues: {
+      amount: 0,
+      pixKey: '',
+    },
+  });
 
   useEffect(() => {
     if (!user) {
@@ -65,8 +88,8 @@ export default function ProfilePage() {
             });
           }
           console.log('Profile data fetched successfully');
-        } catch (error) {
-          console.error('Error fetching profile data:', error);
+        } catch {
+          console.error('Error fetching profile data');
           toast.error('Falha ao carregar dados do perfil');
         } finally {
           setIsLoading(false);
@@ -87,9 +110,70 @@ export default function ProfilePage() {
         });
         
         setTimeout(() => setCopied(false), 2000);
-      } catch (error) {
+      } catch {
         toast.error('Falha ao copiar o link');
       }
+    }
+  };
+
+  const handleWithdrawalSubmit = async (data: WithdrawalForm) => {
+    if (!user?.token) return;
+
+    if (data.amount > (user.affiliateBalance || 0)) {
+      toast.error('Saldo insuficiente para o saque', {
+        style: {
+          background: 'oklch(0.6368 0.2078 25.3313)',
+          color: 'oklch(1.0000 0 0)',
+          border: 'none',
+          borderRadius: '8px',
+          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+        },
+        duration: 3000,
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      await api.post('/affiliate/withdrawal', data, {
+        headers: { Authorization: `Bearer ${user.token}` },
+      });
+      toast.success('Solicitação de saque enviada com sucesso!', {
+        description: 'Aguarde a aprovação do administrador.',
+        style: {
+          background: 'oklch(0.6171 0.1375 39.0427)',
+          color: 'oklch(1.0000 0 0)',
+          border: 'none',
+          borderRadius: '8px',
+          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+        },
+        duration: 3000,
+      });
+      // Refresh user balance after withdrawal request
+      const balanceResponse = await api.get('/users/me/balance', {
+        headers: { Authorization: `Bearer ${user.token}` },
+      });
+      setUser({
+        ...user,
+        balance: balanceResponse.data.balance,
+        affiliateBalance: balanceResponse.data.affiliateBalance,
+      });
+      reset();
+    } catch (error) {
+      const errorMessage = (error as any).response?.data?.message || 'Tente novamente mais tarde.';
+      toast.error('Falha ao enviar solicitação de saque', {
+        description: errorMessage,
+        style: {
+          background: 'oklch(0.6368 0.2078 25.3313)',
+          color: 'oklch(1.0000 0 0)',
+          border: 'none',
+          borderRadius: '8px',
+          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+        },
+        duration: 3000,
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -328,6 +412,71 @@ export default function ProfilePage() {
                     Compartilhe este link para ganhar comissões em cada referência
                   </p>
                 </motion.div>
+
+                {/* Withdrawal Request Form */}
+                <motion.div 
+                  className="space-y-3"
+                  whileHover={{ scale: 1.01 }}
+                  transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                >
+                  <Label className="text-foreground font-semibold flex items-center">
+                    <Wallet className="mr-2 h-4 w-4 text-primary" />
+                    Solicitar Saque de Ganhos de Afiliado
+                  </Label>
+                  <form onSubmit={handleSubmit(handleWithdrawalSubmit)} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="amount" className="text-foreground font-medium">
+                        Valor (R$)
+                      </Label>
+                      <Input
+                        id="amount"
+                        type="number"
+                        step="0.01"
+                        {...register('amount', { valueAsNumber: true })}
+                        placeholder="Digite o valor a sacar (mín. R$ 50)"
+                        className="pl-4 pr-4 py-3 bg-muted/50 border-border/50 rounded-xl text-foreground font-medium focus:ring-2 focus:ring-primary/20 transition-all duration-300"
+                      />
+                      {errors.amount && (
+                        <p className="text-destructive text-sm">{errors.amount.message}</p>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="pixKey" className="text-foreground font-medium">
+                        Chave PIX
+                      </Label>
+                      <Input
+                        id="pixKey"
+                        {...register('pixKey')}
+                        placeholder="Digite sua chave PIX"
+                        className="pl-4 pr-4 py-3 bg-muted/50 border-border/50 rounded-xl text-foreground font-medium focus:ring-2 focus:ring-primary/20 transition-all duration-300"
+                      />
+                      {errors.pixKey && (
+                        <p className="text-destructive text-sm">{errors.pixKey.message}</p>
+                      )}
+                    </div>
+                    <Button
+                      type="submit"
+                      disabled={isLoading || (user.affiliateBalance || 0) < 50}
+                      className="w-full bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary text-primary-foreground font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02]"
+                    >
+                      {isLoading ? (
+                        <>
+                          <motion.div
+                            animate={{ rotate: 360 }}
+                            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                            className="w-5 h-5 border-2 border-white border-t-transparent rounded-full mr-2"
+                          />
+                          Enviando...
+                        </>
+                      ) : (
+                        'Solicitar Saque'
+                      )}
+                    </Button>
+                  </form>
+                  <p className="text-sm text-muted-foreground ml-6">
+                    O saque será processado após aprovação do administrador. Mínimo de R$ 50.
+                  </p>
+                </motion.div>
               </CardContent>
             </Card>
           </motion.div>
@@ -357,6 +506,9 @@ export default function ProfilePage() {
           </motion.div>
         </motion.div>
       </div>
+
+      {/* Componente Toaster adicionado aqui */}
+      <Toaster />
     </div>
   );
 }
