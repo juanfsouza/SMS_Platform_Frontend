@@ -74,8 +74,7 @@ export function PurchaseModal({
         setStartTime(Date.now());
         toast.success('Compra realizada com sucesso!');
       }
-    } catch (error) {
-      console.error('Purchase error:', error);
+    } catch {
       toast.error('Falha ao realizar a compra');
     } finally {
       setIsLoading(false);
@@ -97,8 +96,7 @@ export function PurchaseModal({
       setUser({ ...user, balance: newBalance });
       setIsRefunded(true);
       toast.success('Reembolso realizado com sucesso. Saldo atualizado.');
-    } catch (error) {
-      console.error('Refund error:', error);
+    } catch {
       toast.error('Falha ao processar o reembolso');
     }
   };
@@ -127,8 +125,7 @@ export function PurchaseModal({
               }
             }
           }
-        } catch (error) {
-          console.error('Error polling status:', error);
+        } catch {
           toast.error('Falha ao verificar status do número');
           setIsPolling(false);
           if (!isRefunded) {

@@ -2,7 +2,7 @@ import axios, { AxiosInstance } from 'axios';
 import { useAuthStore } from '@/stores/auth';
 
 const api: AxiosInstance = axios.create({
-  baseURL: 'http://localhost:3000',
+  baseURL: 'https://www.findexsms.com/',
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
@@ -16,15 +16,13 @@ api.interceptors.request.use(
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
-      console.log(`API Request: ${config.method?.toUpperCase()} ${config.url}`, config.headers);
+
       return config;
-    } catch (error) {
-      console.error('Error in request interceptor:', error);
+    } catch {
       return config;
     }
   },
   (error) => {
-    console.error('Request interceptor error:', error);
     return Promise.reject(error);
   }
 );
@@ -32,7 +30,6 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    console.error('API Error:', error.response?.data || error.message);
     if (error.response?.status === 401) {
       useAuthStore.getState().setUser(null);
       if (typeof window !== 'undefined') {

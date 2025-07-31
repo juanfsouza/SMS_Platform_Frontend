@@ -35,9 +35,7 @@ export default function Navbar() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, [lastScrollY]);
 
-  useEffect(() => {
-    console.log('User in Navbar:', user);
-  }, [user]);
+
 
   const handleLogout = () => {
     setUser(null);

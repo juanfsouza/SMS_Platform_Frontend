@@ -27,12 +27,9 @@ import {
   RotateCcw,
   Check,
   X,
-  Clock,
-  Eye,
   AlertCircle,
   Info
 } from 'lucide-react';
-import { Icon } from '@iconify/react';
 import { motion } from 'framer-motion';
 
 // Definição do tipo Price
@@ -105,7 +102,6 @@ export default function AdminConfigPage() {
         setAffiliateCommission(commissionResponse.data.percentage);
         setLoading(false);
       } catch {
-        console.error('Error fetching data');
         toast.error('Falha ao carregar dados de configuração', {
           style: {
             background: 'oklch(0.6368 0.2078 25.3313)',

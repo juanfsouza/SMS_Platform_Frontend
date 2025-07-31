@@ -33,8 +33,7 @@ const Confirmed: React.FC = () => {
           balance: balanceResponse.data.balance,
           affiliateBalance: balanceResponse.data.affiliateBalance,
         });
-      } catch (error: unknown) {
-        console.error('Error fetching balance:', error);
+      } catch {
         toast.error('Falha ao atualizar saldo');
       }
     };

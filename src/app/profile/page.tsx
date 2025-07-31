@@ -26,7 +26,6 @@ import {
 } from 'lucide-react';
 import { motion, Variants } from 'framer-motion';
 
-// Schema for withdrawal form validation
 const withdrawalSchema = z.object({
   amount: z.number()
     .min(50, 'O valor mínimo para saque é R$ 50')
@@ -38,13 +37,21 @@ const withdrawalSchema = z.object({
 
 type WithdrawalForm = z.infer<typeof withdrawalSchema>;
 
+interface ApiError {
+  response?: {
+    data?: {
+      message?: string;
+    };
+  };
+  message?: string;
+}
+
 export default function ProfilePage() {
   const { user, setUser } = useAuthStore();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  // Form for withdrawal request
   const { register, handleSubmit, formState: { errors }, reset } = useForm<WithdrawalForm>({
     resolver: zodResolver(withdrawalSchema),
     defaultValues: {
@@ -63,7 +70,6 @@ export default function ProfilePage() {
       const fetchData = async () => {
         setIsLoading(true);
         try {
-          console.log('Fetching profile data...');
           const linkResponse = await api.get('/affiliate/link', {
             headers: { Authorization: `Bearer ${user.token}` },
           });
@@ -87,9 +93,7 @@ export default function ProfilePage() {
               affiliateLink: newAffiliateLink,
             });
           }
-          console.log('Profile data fetched successfully');
         } catch {
-          console.error('Error fetching profile data');
           toast.error('Falha ao carregar dados do perfil');
         } finally {
           setIsLoading(false);
@@ -149,7 +153,6 @@ export default function ProfilePage() {
         },
         duration: 3000,
       });
-      // Refresh user balance after withdrawal request
       const balanceResponse = await api.get('/users/me/balance', {
         headers: { Authorization: `Bearer ${user.token}` },
       });
@@ -160,7 +163,8 @@ export default function ProfilePage() {
       });
       reset();
     } catch (error) {
-      const errorMessage = (error as any).response?.data?.message || 'Tente novamente mais tarde.';
+      const apiError = error as ApiError;
+      const errorMessage = apiError.response?.data?.message || 'Tente novamente mais tarde.';
       toast.error('Falha ao enviar solicitação de saque', {
         description: errorMessage,
         style: {

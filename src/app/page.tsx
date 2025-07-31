@@ -19,7 +19,7 @@ export default function Home() {
   } = usePageLoading({
     minLoadingTime: 3000,
     fadeOutDuration: 800,
-    preloadImages: ['/hero.png'] // Adicione outras imagens críticas aqui
+    preloadImages: ['/hero.png']
   });
 
   return (

@@ -46,12 +46,10 @@ export const useAuthStore = create<AuthState>((set) => {
         if (isValidUser(parsedUser)) {
           initialUser = parsedUser;
         } else {
-          console.warn('Invalid user data in localStorage, clearing it.');
           localStorage.removeItem('authUser');
         }
       }
-    } catch (error) {
-      console.error('Failed to parse authUser from localStorage:', error);
+    } catch {
       localStorage.removeItem('authUser');
     }
   }

@@ -12,7 +12,6 @@ export const login = async (email: string, password: string) => {
     useAuthStore.getState().setUser(fullUser);
     return fullUser;
   } catch (error) {
-    console.error('Login failed:', error);
     throw error;
   }
 };

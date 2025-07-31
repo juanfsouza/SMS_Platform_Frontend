@@ -88,7 +88,6 @@ export default function DashboardPage() {
       ).sort() as string[];
       setAllServices(services);
     } catch (error: unknown) {
-      console.error('Error fetching all services:', error);
       if (error instanceof Error && 'response' in error) {
         const apiError = error as ApiError;
         if (apiError.response?.status === 401) {
@@ -113,7 +112,6 @@ export default function DashboardPage() {
         setAllPrices((prev) => [...prev, ...newPrices]);
         setHasMore(newPrices.length === limit);
       } catch (error: unknown) {
-        console.error('Error fetching all prices:', error);
         if (error instanceof Error && 'response' in error) {
           const apiError = error as ApiError;
           if (apiError.response?.status === 401) {
@@ -145,7 +143,6 @@ export default function DashboardPage() {
       );
       setPopularPrices(filteredPrices);
     } catch (error: unknown) {
-      console.error('Error fetching popular prices:', error);
       if (error instanceof Error && 'response' in error) {
         const apiError = error as ApiError;
         if (apiError.response?.status === 401) {
@@ -160,8 +157,7 @@ export default function DashboardPage() {
               POPULAR_SERVICES.includes(item.service)
             );
             setPopularPrices(fallbackPrices);
-          } catch (fallbackError: unknown) {
-            console.error('Error fetching fallback prices:', fallbackError);
+          } catch {
             toast.error('Falha ao carregar preços de fallback');
           }
         }
@@ -186,7 +182,6 @@ export default function DashboardPage() {
       );
       setHasActivePolling(hasActive);
     } catch (error: unknown) {
-      console.error('Error fetching recent activations:', error);
       if (error instanceof Error && 'response' in error) {
         const apiError = error as ApiError;
         if (apiError.response?.status === 401) {
@@ -231,7 +226,6 @@ export default function DashboardPage() {
         setHasActivePolling(true);
         return { activationId, phoneNumber, creditsSpent };
       } catch (error: unknown) {
-        console.error('Purchase error:', error);
         if (error instanceof Error && 'response' in error) {
           const apiError = error as ApiError;
           if (apiError.response?.status === 401) {
@@ -285,7 +279,6 @@ export default function DashboardPage() {
           });
         }
       } catch (error: unknown) {
-        console.error('Error fetching user data:', error);
         if (error instanceof Error && 'response' in error) {
           const apiError = error as ApiError;
           if (apiError.response?.status === 401) {
@@ -325,7 +318,6 @@ export default function DashboardPage() {
           setHasActivePolling(false);
         }
       } catch (error: unknown) {
-        console.error('Error updating recent activations:', error);
         if (error instanceof Error && 'response' in error) {
           const apiError = error as ApiError;
           if (apiError.response?.status === 401) {
