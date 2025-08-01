@@ -101,7 +101,7 @@ function RegisterContent() {
         duration: 5000,
       });
       setTimeout(() => {
-        router.push('/auth/login');
+        router.push('/login');
       }, 5000);
     } catch {
       toast.error('Falha no registro: Email já existe ou erro interno.', {
@@ -348,7 +348,7 @@ function RegisterContent() {
               <p className="text-muted-foreground text-sm">
                 Já tem uma conta?{' '}
                 <Link 
-                  href="/auth/login" 
+                  href="/login" 
                   className="text-primary hover:text-primary/80 font-semibold transition-colors duration-200 hover:underline"
                 >
                   Fazer login

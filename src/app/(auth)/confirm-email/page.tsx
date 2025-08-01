@@ -38,7 +38,7 @@ function ConfirmEmailContent() {
         return;
       }
       try {
-        await api.get(`/confirm-email?token=${token}`);
+        await api.get(`/auth/confirm-email?token=${token}`);
         toast.success('E-mail confirmado! Você pode fazer login agora.', {
           style: {
             background: 'oklch(0.6171 0.1375 39.0427)',

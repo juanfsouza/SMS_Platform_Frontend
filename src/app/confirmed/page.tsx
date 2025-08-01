@@ -19,7 +19,7 @@ const Confirmed: React.FC = () => {
     hasExecuted.current = true;
 
     if (!user) {
-      router.push('/auth/login');
+      router.push('/login');
       return;
     }
 

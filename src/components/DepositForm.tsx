@@ -50,7 +50,7 @@ const DepositForm: React.FC<DepositFormProps> = () => {
 
     if (!user || !user.token) {
       toast.error('Usuário não autenticado. Faça login novamente.');
-      router.push('/auth/login');
+      router.push('/login');
       return;
     }
 

@@ -39,7 +39,7 @@ export default function Navbar() {
 
   const handleLogout = () => {
     setUser(null);
-    router.push('/auth/login');
+    router.push('/login');
   };
 
   return (
@@ -191,7 +191,7 @@ export default function Navbar() {
                     whileTap={{ scale: 0.95 }}
                   >
                     <Link 
-                      href="/auth/login" 
+                      href="/login" 
                       className={`inline-flex items-center px-6 py-2.5 rounded-xl font-custom-bold text-sm transition-all duration-300 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 ${
                         isScrolled
                           ? 'bg-primary text-primary-foreground hover:bg-primary/90 focus:ring-ring'

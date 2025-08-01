@@ -51,7 +51,7 @@ export default function ResetPasswordForm() {
       reset({ token, password: '' });
     } else if (searchParams.get('token') === null) {
       toast.error('Nenhum token de redefinição fornecido.');
-      router.push('/auth/login');
+      router.push('/login');
     }
   }, [token, searchParams, reset, router]);
 
@@ -69,7 +69,7 @@ export default function ResetPasswordForm() {
         },
         duration: 5000,
       });
-      setTimeout(() => router.push('/auth/login'), 2000);
+      setTimeout(() => router.push('/login'), 2000);
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error && 'response' in error
@@ -185,7 +185,7 @@ export default function ResetPasswordForm() {
               <p className="text-muted-foreground text-sm">
                 Lembrou da senha?{' '}
                 <Link
-                  href="/auth/login"
+                  href="/login"
                   className="text-primary hover:text-primary/80 font-semibold transition-colors duration-200 hover:underline"
                 >
                   Fazer Login

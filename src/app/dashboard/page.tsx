@@ -73,7 +73,7 @@ export default function DashboardPage() {
 
   const handleUnauthorized = useCallback(() => {
     setUser(null);
-    router.push('/auth/login');
+    router.push('/login');
   }, [setUser, router]);
 
   const fetchAllServices = useCallback(async () => {
@@ -248,7 +248,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!user) {
-      router.push('/auth/login');
+      router.push('/login');
       return;
     }
 

@@ -2,7 +2,7 @@ import axios, { AxiosInstance } from 'axios';
 import { useAuthStore } from '@/stores/auth';
 
 const api: AxiosInstance = axios.create({
-  baseURL: 'https://www.findexsms.com/',
+  baseURL: 'http://localhost:3000/',
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
@@ -33,7 +33,7 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       useAuthStore.getState().setUser(null);
       if (typeof window !== 'undefined') {
-        window.location.href = '/auth/login';
+        window.location.href = '/login';
       }
     }
     return Promise.reject(error);
