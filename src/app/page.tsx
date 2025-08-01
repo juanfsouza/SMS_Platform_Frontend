@@ -4,18 +4,13 @@ import AboutSection from '@/components/AboutSection';
 import HeroSection from '@/components/HeroSection';
 import ServiceSection from '@/components/ServiceSection';
 import Navbar from '@/components/Navbar';
-import { SmoothCursor } from '@/components/ui/smooth-cursor';
 import ChannelsSection from '@/components/ChannelsSection';
 import FooterSection from '@/components/FooterSection';
-import PageLoader from '@/components/PageLoader';
 import { usePageLoading } from '@/hooks/usePageLoading';
 
 export default function Home() {
   const { 
-    isLoading, 
     showContent, 
-    fadeOut, 
-    loadingProgress 
   } = usePageLoading({
     minLoadingTime: 3000,
     fadeOutDuration: 800,
