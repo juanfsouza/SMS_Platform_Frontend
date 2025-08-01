@@ -23,16 +23,7 @@ export default function Home() {
   });
 
   return (
-    <>
-      {isLoading && (
-        <PageLoader
-          fadeOut={fadeOut}
-          showProgress={true}
-          progress={loadingProgress}
-          brandName="FDX SMS"
-        />
-      )}
-      
+    <>    
       <div 
         className={`transition-opacity duration-500 ${
           showContent ? 'opacity-100' : 'opacity-0'
@@ -46,7 +37,6 @@ export default function Home() {
         <HeroSection />
         <AboutSection />
         <ServiceSection />
-        <SmoothCursor />
         <ChannelsSection />
         <FooterSection />
       </div>
