@@ -150,7 +150,7 @@ export default function FooterSection() {
         <div className="py-8 border-t border-border">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-6 text-sm text-muted-foreground">
-              <span>© 2025 By: Creative Makes Agents. Todos os direitos reservados.</span>
+              <span>© 2025 Findexsms Todos os direitos reservados.</span>
               <a href="#" className="hover:text-primary transition-colors duration-200">
                 Política de Privacidade
               </a>

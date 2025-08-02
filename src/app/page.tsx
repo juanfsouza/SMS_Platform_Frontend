@@ -7,6 +7,7 @@ import Navbar from '@/components/Navbar';
 import ChannelsSection from '@/components/ChannelsSection';
 import FooterSection from '@/components/FooterSection';
 import { usePageLoading } from '@/hooks/usePageLoading';
+import FloatingButton from '@/components/FloatingButton';
 
 export default function Home() {
   const { 
@@ -29,6 +30,7 @@ export default function Home() {
         }}
       >
         <Navbar />
+        <FloatingButton />
         <HeroSection />
         <AboutSection />
         <ServiceSection />

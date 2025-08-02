@@ -4,6 +4,7 @@ import { useState, useMemo, memo } from 'react';
 import { Icon } from '@iconify/react';
 import Image from 'next/image';
 import { WordRotate } from './ui/word-rotate';
+import Link from 'next/link';
 
 export default function HeroSection() {
 
@@ -133,9 +134,11 @@ MessagePreview.displayName = 'MessagePreview';
             </div>
 
             <div className="pt-6">
+            <Link href="/login">
               <button className="bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-4 rounded-xl text-lg font-semibold transition-colors duration-200 shadow-lg hover:shadow-xl will-change-transform">
                 Solicitar Meu SMS
               </button>
+            </Link>
             </div>
           </div>
 
@@ -195,7 +198,7 @@ MessagePreview.displayName = 'MessagePreview';
                 alt="Phone Demo"
                 width={550}
                 height={550}
-                className="h-auto w-[550px] lg:ml-35 md:ml-10 mt-2"
+                className="h-auto w-[550px] lg:ml-5 lg:p-0 md:ml-10 xl:ml-40 mt-15 lg:mt-10"
                 priority
                 loading="eager"
                 quality={85}

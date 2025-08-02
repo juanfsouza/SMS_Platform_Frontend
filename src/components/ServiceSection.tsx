@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Icon } from '@iconify/react';
+import Link from 'next/link';
 
 export default function ServiceSection() {
   const [activeService, setActiveService] = useState('sms');
@@ -128,12 +129,16 @@ export default function ServiceSection() {
             </div>
 
             <div className="flex gap-4">
+              <Link href="/login">
               <button className="bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-3 rounded-lg font-bold transition-all duration-300 hover:scale-105 shadow-md">
                 Saiba Mais
               </button>
+              </Link>
+              <Link href="/login">
               <button className="border border-primary text-primary hover:bg-primary/10 px-6 py-3 rounded-lg font-bold transition-all duration-300 hover:scale-105">
                 Contato
               </button>
+              </Link>
             </div>
           </div>
 

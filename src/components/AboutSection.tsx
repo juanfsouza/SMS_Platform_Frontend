@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Icon } from '@iconify/react';
+import Link from 'next/link';
 
 export default function AboutSection() {
   const [activeChannel, setActiveChannel] = useState('SMS');
@@ -66,39 +67,39 @@ export default function AboutSection() {
   ];
 
   return (
-    <div className="py-20 bg-gradient-to-br from-background via-muted/30 to-secondary/20 relative overflow-hidden">
-      <div className="container mx-auto px-4">
-        <div className="grid lg:grid-cols-2 gap-16 items-center">
+    <div className="py-12 sm:py-16 md:py-20 bg-gradient-to-br from-background via-muted/30 to-secondary/20 relative overflow-hidden">
+      <div className="container mx-auto px-4 sm:px-6">
+        <div className="flex flex-col lg:grid lg:grid-cols-2 gap-8 sm:gap-12 lg:gap-16 items-center">
           {/* Left Content */}
-          <div className="space-y-8">
-            <div className="space-y-6">
-              <div className="inline-flex items-center gap-2 bg-primary/10 text-primary px-4 py-2 rounded-full text-sm font-medium">
-                <Icon icon="mdi:message-processing" className="text-lg" />
+          <div className="space-y-6 sm:space-y-8">
+            <div className="space-y-4 sm:space-y-6">
+              <div className="inline-flex items-center gap-2 bg-primary/10 text-primary px-3 sm:px-4 py-2 rounded-full text-xs sm:text-sm font-medium">
+                <Icon icon="mdi:message-processing" className="text-base sm:text-lg" />
                 Receba SMS online
               </div>
               
-              <h2 className="text-4xl lg:text-5xl font-custom-bold font-bold text-foreground leading-tight">
+              <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-custom-bold font-bold text-foreground leading-tight">
                 Experimente nosso serviço para{' '}
                 <span className="text-primary">receber SMS online</span>
               </h2>
               
-              <p className="text-lg font-bold text-muted-foreground leading-relaxed">
+              <p className="text-base sm:text-lg font-bold text-muted-foreground leading-relaxed">
                 Por que um número de telefone virtual para SMS é necessário?
               </p>
             </div>
 
             {/* Features List */}
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
               {features.map((feature, index) => (
-                <div key={index} className="flex items-start gap-4 group">
-                  <div className={`w-12 h-12 rounded-xl bg-card border flex items-center justify-center group-hover:scale-110 transition-transform duration-300`}>
-                    <Icon icon={feature.icon} className={`text-xl ${feature.color}`} />
+                <div key={index} className="flex items-start gap-3 sm:gap-4 group">
+                  <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-card border flex items-center justify-center group-hover:scale-110 transition-transform duration-300`}>
+                    <Icon icon={feature.icon} className={`text-lg sm:text-xl ${feature.color}`} />
                   </div>
                   <div className="flex-1">
-                    <h3 className="text-xl font-bold text-foreground mb-2">
+                    <h3 className="text-lg sm:text-xl font-bold text-foreground mb-1 sm:mb-2">
                       {feature.title}
                     </h3>
-                    <p className="text-muted-foreground font-bold leading-relaxed">
+                    <p className="text-sm sm:text-base text-muted-foreground font-bold leading-relaxed">
                       {feature.description}
                     </p>
                   </div>
@@ -106,76 +107,78 @@ export default function AboutSection() {
               ))}
             </div>
 
-            <div className="pt-4">
-              <button className="bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-3 rounded-lg font-semibold transition-all duration-300 hover:scale-105 shadow-md hover:shadow-lg">
+            <div className="pt-2 sm:pt-4">
+              <Link href="/login">
+              <button className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-semibold transition-all duration-300 hover:scale-105 shadow-md hover:shadow-lg">
                 Começar Agora
               </button>
+              </Link>
             </div>
           </div>
 
           {/* Right Content - Interactive Dashboard */}
           <div className="relative">
             {/* Main Dashboard Container */}
-            <div className="bg-card rounded-2xl shadow-2xl border p-8 relative overflow-hidden">
+            <div className="bg-card rounded-2xl shadow-2xl border p-6 sm:p-8 relative overflow-hidden">
               {/* Background decoration */}
-              <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-2xl"></div>
+              <div className="absolute top-0 right-0 w-24 sm:w-32 h-24 sm:h-32 bg-primary/5 rounded-full blur-2xl"></div>
               
               {/* Header */}
-              <div className="flex items-center justify-between mb-8">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 sm:mb-8">
                 <div>
-                  <h3 className="text-2xl font-bold text-foreground">Ativar por SMS é fácil!</h3>
-                  <p className="text-muted-foreground">Selecione o serviço e o país</p>
+                  <h3 className="text-xl sm:text-2xl font-bold text-foreground">Ativar por SMS é fácil!</h3>
+                  <p className="text-sm sm:text-base text-muted-foreground">Selecione o serviço e o país</p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                  <span className="text-sm text-muted-foreground">Online</span>
+                <div className="flex items-center gap-2 mt-2 sm:mt-0">
+                  <div className="w-2 h-2 sm:w-3 sm:h-3 bg-green-500 rounded-full"></div>
+                  <span className="text-xs sm:text-sm text-muted-foreground">Online</span>
                 </div>
               </div>
 
               {/* Progress Steps */}
-              <div className="flex items-center justify-between mb-8">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 sm:mb-8">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
-                    <span className="text-sm font-semibold text-primary-foreground">1</span>
+                  <div className="w-6 sm:w-8 h-6 sm:h-8 bg-primary rounded-full flex items-center justify-center">
+                    <span className="text-xs sm:text-sm font-semibold text-primary-foreground">1</span>
                   </div>
-                  <span className="text-sm font-medium text-foreground">Compre</span>
+                  <span className="text-xs sm:text-sm font-medium text-foreground">Compre</span>
                 </div>
-                <div className="flex-1 h-px bg-border mx-4"></div>
+                <div className="flex-1 h-px bg-border mx-0 sm:mx-4 my-2 sm:my-0"></div>
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 bg-muted rounded-full flex items-center justify-center">
-                    <span className="text-sm font-semibold text-muted-foreground">2</span>
+                  <div className="w-6 sm:w-8 h-6 sm:h-8 bg-muted rounded-full flex items-center justify-center">
+                    <span className="text-xs sm:text-sm font-semibold text-muted-foreground">2</span>
                   </div>
-                  <span className="text-sm text-muted-foreground">Insira-o</span>
+                  <span className="text-xs sm:text-sm text-muted-foreground">Insira-o</span>
                 </div>
-                <div className="flex-1 h-px bg-border mx-4"></div>
+                <div className="flex-1 h-px bg-border mx-0 sm:mx-4 my-2 sm:my-0"></div>
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 bg-muted rounded-full flex items-center justify-center">
-                    <span className="text-sm font-semibold text-muted-foreground">3</span>
+                  <div className="w-6 sm:w-8 h-6 sm:h-8 bg-muted rounded-full flex items-center justify-center">
+                    <span className="text-xs sm:text-sm font-semibold text-muted-foreground">3</span>
                   </div>
-                  <span className="text-sm text-muted-foreground">O código SMS</span>
+                  <span className="text-xs sm:text-sm text-muted-foreground">O código SMS</span>
                 </div>
               </div>
 
               {/* Channel Selection */}
-              <div className="space-y-4 mb-8">
-                <h4 className="text-lg font-semibold text-foreground">Serviços</h4>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+              <div className="space-y-4 mb-6 sm:mb-8">
+                <h4 className="text-base sm:text-lg font-semibold text-foreground">Serviços</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {channels.map((channel) => (
                     <button
                       key={channel.id}
                       onClick={() => setActiveChannel(channel.id)}
-                      className={`p-4 rounded-xl border-2 transition-all duration-300 hover:scale-105 ${
+                      className={`p-3 sm:p-4 rounded-xl border-2 transition-all duration-300 hover:scale-105 ${
                         activeChannel === channel.id
                           ? 'border-primary bg-primary/10'
                           : 'border-border hover:border-primary/50'
                       }`}
                     >
-                      <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 ${channel.color} rounded-lg flex items-center justify-center`}>
-                          <Icon icon={channel.icon} className="text-white text-lg" />
+                      <div className="flex items-center gap-2 sm:gap-3">
+                        <div className={`w-8 sm:w-10 h-8 sm:h-10 ${channel.color} rounded-lg flex items-center justify-center`}>
+                          <Icon icon={channel.icon} className="text-white text-base sm:text-lg" />
                         </div>
                         <div className="text-left">
-                          <h5 className="font-semibold text-foreground">{channel.name}</h5>
+                          <h5 className="text-sm sm:text-base font-semibold text-foreground">{channel.name}</h5>
                           <p className="text-xs text-muted-foreground">
                             {channel.description}
                           </p>
@@ -188,14 +191,14 @@ export default function AboutSection() {
 
               {/* Message Configuration */}
               <div className="space-y-4 mb-6 font-medium">                
-                <div className="bg-muted/30 rounded-lg p-4">
-                  <div className="flex justify-between text-sm text-muted-foreground mb-2">
+                <div className="bg-muted/30 rounded-lg p-3 sm:p-4">
+                  <div className="flex flex-col sm:flex-row justify-between text-xs sm:text-sm text-muted-foreground mb-2">
                     <span>Créditos na conta: 10</span>
-                    <span>Ganhe por cada indicação: 10</span>
+                    <span className="mt-1 sm:mt-0">Ganhe por cada indicação: 10</span>
                   </div>
-                  <div className="flex justify-between text-sm text-muted-foreground">
+                  <div className="flex flex-col sm:flex-row justify-between text-xs sm:text-sm text-muted-foreground">
                     <span>Receba SMS online para mais de 180 países</span>
-                    <span>Descontos e preços de atacado</span>
+                    <span className="mt-1 sm:mt-0">Descontos e preços de atacado</span>
                   </div>
                 </div>
 
@@ -205,20 +208,20 @@ export default function AboutSection() {
                   </label>
                   <textarea
                     placeholder="Digite sua mensagem..."
-                    className="w-full px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary bg-background h-24 resize-none"
+                    className="w-full px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary bg-background h-20 sm:h-24 resize-none text-sm sm:text-base"
                   />
                 </div>
               </div>
 
               {/* Action Button */}
-              <button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-3 rounded-lg font-semibold transition-all duration-300 hover:scale-105 shadow-md">
+              <button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-2 sm:py-3 rounded-lg font-semibold transition-all duration-300 hover:scale-105 shadow-md">
                 Próximo Passo
               </button>
             </div>
 
             {/* Floating Elements */}
-            <div className="absolute -top-4 -right-4 w-20 h-20 bg-primary/10 rounded-full blur-xl"></div>
-            <div className="absolute -bottom-4 -left-4 w-16 h-16 bg-secondary/20 rounded-full blur-lg"></div>
+            <div className="absolute -top-4 -right-4 w-16 sm:w-20 h-16 sm:h-20 bg-primary/10 rounded-full blur-xl"></div>
+            <div className="absolute -bottom-4 -left-4 w-12 sm:w-16 h-12 sm:h-16 bg-secondary/20 rounded-full blur-lg"></div>
           </div>
         </div>
       </div>

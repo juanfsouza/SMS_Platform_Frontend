@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Icon } from '@iconify/react';
+import Link from 'next/link';
 
 export default function ChannelsSection() {
   const [activeView, setActiveView] = useState('cascade');
@@ -188,12 +189,16 @@ export default function ChannelsSection() {
               </div>
 
               <div className="flex gap-4">
+                <Link href="/login">
                 <button className="bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-3 rounded-lg font-semibold transition-all duration-300 hover:scale-105 shadow-md">
                   Começar Agora
                 </button>
+                </Link>
+                <Link href="/login">
                 <button className="border border-primary text-primary hover:bg-primary/10 px-6 py-3 rounded-lg font-semibold transition-all duration-300 hover:scale-105">
                   Saiba Mais
                 </button>
+                </Link>
               </div>
             </div>
           </div>
@@ -239,9 +244,11 @@ export default function ChannelsSection() {
 
             {/* Bottom CTA */}
             <div className="text-center">
+              <Link href="/login">
               <button className="bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-4 rounded-lg font-semibold transition-all duration-300 hover:scale-105 shadow-md">
                 Explorar todos os seviços
               </button>
+              </Link>
             </div>
           </div>
         )}
