@@ -477,7 +477,7 @@ export default function AdminConfigPage() {
   }, [user?.token]);
 
   // Callbacks para atualizar dados específicos
-  const handleUserBalanceUpdate = useCallback((userId: number) => {
+  const handleUserBalanceUpdate = useCallback(() => {
     loadUsersData();
   }, [loadUsersData]);
 
