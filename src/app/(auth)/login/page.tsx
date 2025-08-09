@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
@@ -13,9 +13,10 @@ import { toast, Toaster } from 'sonner';
 import api from '@/lib/api';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Eye, EyeOff, Mail, Lock, LogIn, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, LogIn, Loader2, Shield } from 'lucide-react';
 import { Icon } from '@iconify/react';
 import { motion } from 'framer-motion';
+import { Turnstile, TurnstileRef } from '@/components/ui/turnstile';
 
 const decodeToken = (token: string) => {
   try {
@@ -38,15 +39,49 @@ export default function LoginPage() {
   const { setUser } = useAuthStore();
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const turnstileRef = useRef<TurnstileRef>(null);
 
   const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
   });
 
+  const handleTurnstileSuccess = (token: string) => {
+    setTurnstileToken(token);
+  };
+
+  const handleTurnstileError = (error: string) => {
+    console.error('Turnstile error:', error);
+    setTurnstileToken(null);
+    toast.error('Erro na verificação de segurança. Tente novamente.');
+  };
+
+  const handleTurnstileExpire = () => {
+    setTurnstileToken(null);
+    toast.warning('Verificação de segurança expirada. Complete novamente.');
+  };
+
   const onSubmit = async (data: LoginForm) => {
+    if (!turnstileToken) {
+      toast.error('Complete a verificação de segurança primeiro.', {
+        style: {
+          background: 'oklch(0.6368 0.2078 25.3313)',
+          color: 'oklch(1.0000 0 0)',
+          border: 'none',
+          borderRadius: '8px',
+          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+        },
+        duration: 5000,
+      });
+      return;
+    }
+
     setIsLoading(true);
     try {
-      const response = await api.post('/auth/login', data);
+      const response = await api.post('/auth/login', {
+        ...data,
+        turnstileToken,
+      });
       const { user, token } = response.data;
 
       const decoded = decodeToken(token);
@@ -63,6 +98,8 @@ export default function LoginPage() {
           },
           duration: 5000,
         });
+        turnstileRef.current?.reset();
+        setTurnstileToken(null);
         return;
       }
 
@@ -89,8 +126,11 @@ export default function LoginPage() {
         duration: 5000,
       });
       router.push('/dashboard');
-    } catch {
-      toast.error('Falha no login: Credenciais inválidas', {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error && 'response' in error && error.response && typeof error.response === 'object' && 'data' in error.response && error.response.data && typeof error.response.data === 'object' && 'message' in error.response.data && typeof error.response.data.message === 'string'
+        ? error.response.data.message
+        : 'Falha no login: Credenciais inválidas';
+      toast.error(errorMessage, {
         style: {
           background: 'oklch(0.6368 0.2078 25.3313)',
           color: 'oklch(1.0000 0 0)',
@@ -100,6 +140,8 @@ export default function LoginPage() {
         },
         duration: 5000,
       });
+      turnstileRef.current?.reset();
+      setTurnstileToken(null);
     } finally {
       setIsLoading(false);
     }
@@ -210,6 +252,30 @@ export default function LoginPage() {
                 )}
               </motion.div>
 
+              {/* Turnstile CAPTCHA */}
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.45 }}
+                className="space-y-2"
+              >
+                <Label className="text-foreground font-medium flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-primary" />
+                  Verificação de segurança
+                </Label>
+                <div className="flex justify-center">
+                  <Turnstile
+                    ref={turnstileRef}
+                    siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
+                    onSuccess={handleTurnstileSuccess}
+                    onError={handleTurnstileError}
+                    onExpire={handleTurnstileExpire}
+                    theme="auto"
+                    size="normal"
+                  />
+                </div>
+              </motion.div>
+
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -217,8 +283,8 @@ export default function LoginPage() {
               >
                 <Button
                   type="submit"
-                  disabled={isLoading}
-                  className="w-full h-12 bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary text-primary-foreground font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02]"
+                  disabled={isLoading || !turnstileToken}
+                  className="w-full h-12 bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary text-primary-foreground font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isLoading ? (
                     <>

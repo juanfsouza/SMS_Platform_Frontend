@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
@@ -13,10 +13,11 @@ import api from '@/lib/api';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Suspense } from 'react';
-import { Eye, EyeOff, Mail, Lock, User, Users, UserPlus, Loader2, CheckCircle } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, User, Users, UserPlus, Loader2, CheckCircle, Shield } from 'lucide-react';
 import { Icon } from '@iconify/react';
 import { motion } from 'framer-motion';
 import React from 'react';
+import { Turnstile, TurnstileRef } from '@/components/ui/turnstile';
 
 const registerSchema = z.object({
   name: z.string().min(2, 'O nome deve ter pelo menos 2 caracteres'),
@@ -48,6 +49,9 @@ function RegisterContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [passwordStrength, setPasswordStrength] = useState(0);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const turnstileRef = useRef<TurnstileRef>(null);
+  const [isRegistered, setIsRegistered] = useState(false);
 
   const { register, handleSubmit, formState: { errors }, watch } = useForm<RegisterForm>({
     resolver: zodResolver(registerSchema),
@@ -86,10 +90,43 @@ function RegisterContent() {
     return 'Forte';
   };
 
+  const handleTurnstileSuccess = (token: string) => {
+    setTurnstileToken(token);
+  };
+
+  const handleTurnstileError = (error: string) => {
+    console.error('Turnstile error:', error);
+    setTurnstileToken(null);
+    toast.error('Erro na verificação de segurança. Tente novamente.');
+  };
+
+  const handleTurnstileExpire = () => {
+    setTurnstileToken(null);
+    toast.warning('Verificação de segurança expirada. Complete novamente.');
+  };
+
   const onSubmit = async (data: RegisterForm) => {
+    if (!turnstileToken) {
+      toast.error('Complete a verificação de segurança primeiro.', {
+        style: {
+          background: 'oklch(0.6368 0.2078 25.3313)',
+          color: 'oklch(1.0000 0 0)',
+          border: 'none',
+          borderRadius: '8px',
+          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+        },
+        duration: 5000,
+      });
+      return;
+    }
+
     setIsLoading(true);
     try {
-      await api.post('/auth/register', data);
+      await api.post('/auth/register', {
+        ...data,
+        turnstileToken,
+      });
+      setIsRegistered(true);
       toast.success('Usuário registrado com sucesso! Verifique seu e-mail para confirmar.', {
         style: {
           background: 'oklch(0.6171 0.1375 39.0427)',
@@ -103,8 +140,11 @@ function RegisterContent() {
       setTimeout(() => {
         router.push('/login');
       }, 5000);
-    } catch {
-      toast.error('Falha no registro: Email já existe ou erro interno.', {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error && 'response' in error && error.response && typeof error.response === 'object' && 'data' in error.response && error.response.data && typeof error.response.data === 'object' && 'message' in error.response.data && typeof error.response.data.message === 'string'
+        ? error.response.data.message
+        : 'Falha no registro: Email já existe ou erro interno.';
+      toast.error(errorMessage, {
         style: {
           background: 'oklch(0.6368 0.2078 25.3313)',
           color: 'oklch(1.0000 0 0)',
@@ -114,6 +154,8 @@ function RegisterContent() {
         },
         duration: 5000,
       });
+      turnstileRef.current?.reset();
+      setTurnstileToken(null);
     } finally {
       setIsLoading(false);
     }
@@ -314,6 +356,30 @@ function RegisterContent() {
                 )}
               </motion.div>
 
+              {/* Turnstile CAPTCHA */}
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.65 }}
+                className="space-y-2"
+              >
+                <Label className="text-foreground font-medium flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-primary" />
+                  Verificação de segurança
+                </Label>
+                <div className="flex justify-center">
+                  <Turnstile
+                    ref={turnstileRef}
+                    siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
+                    onSuccess={handleTurnstileSuccess}
+                    onError={handleTurnstileError}
+                    onExpire={handleTurnstileExpire}
+                    theme="auto"
+                    size="normal"
+                  />
+                </div>
+              </motion.div>
+
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -321,8 +387,8 @@ function RegisterContent() {
               >
                 <Button
                   type="submit"
-                  disabled={isLoading}
-                  className="w-full h-12 bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary text-primary-foreground font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02]"
+                  disabled={isLoading || !turnstileToken}
+                  className="w-full h-12 bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary text-primary-foreground font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isLoading ? (
                     <>
@@ -338,6 +404,27 @@ function RegisterContent() {
                 </Button>
               </motion.div>
             </form>
+
+            {isRegistered && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                transition={{ duration: 0.3 }}
+                className="text-sm text-yellow-600 bg-yellow-100/50 p-3 rounded-lg flex items-center gap-2"
+              >
+                <Icon icon="material-symbols:warning" className="w-5 h-5" />
+                Caso não encontre o código de verificação no seu e-mail, por favor, verifique a pasta de spam ou lixo eletrônico.
+              </motion.div>
+            )}
+
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.8 }}
+              className="text-center"
+            >
+              {/* Existing footer content */}
+            </motion.div>
 
             <motion.div
               initial={{ opacity: 0 }}

@@ -78,6 +78,7 @@ export default function AdminConfigPage() {
   const [loading, setLoading] = useState(true);
   const [affiliateCommission, setAffiliateCommission] = useState(0);
   const [balanceInputs, setBalanceInputs] = useState<{[key: number]: {add: string, update: string}}>({});
+  const [editingPrice, setEditingPrice] = useState<{[key: string]: {priceBrl: string, priceUsd: string}}>({});
   const limit = 10;
 
   useEffect(() => {
@@ -460,6 +461,84 @@ export default function AdminConfigPage() {
     );
   }
 
+  const handleUpdateSinglePrice = async (service: string, country: string) => {
+  const key = `${service}-${country}`;
+  const priceBrl = parseFloat(editingPrice[key]?.priceBrl || '0');
+  const priceUsd = parseFloat(editingPrice[key]?.priceUsd || '0');
+  
+  if (!user?.token || priceBrl <= 0 || priceUsd <= 0) {
+    toast.error('Por favor, insira valores válidos', {
+      style: {
+        background: 'oklch(0.6368 0.2078 25.3313)',
+        color: 'oklch(1.0000 0 0)',
+        border: 'none',
+        borderRadius: '8px',
+        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+      },
+      duration: 3000,
+      position: 'top-right',
+    });
+    return;
+  }
+
+  try {
+    await api.post('/credits/update-single-price', {
+      service,
+      country,
+      priceBrl,
+      priceUsd
+    }, { headers: { Authorization: `Bearer ${user.token}` } });
+    
+    toast.success('Preço atualizado com sucesso', {
+      style: {
+        background: 'oklch(0.6171 0.1375 39.0427)',
+        color: 'oklch(1.0000 0 0)',
+        border: 'none',
+        borderRadius: '8px',
+        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+      },
+      duration: 3000,
+      position: 'top-right',
+    });
+
+    // Atualiza a lista de preços
+    const pricesResponse = await api.get('/credits/prices', { 
+      headers: { Authorization: `Bearer ${user.token}` }, 
+      params: { limit, offset: 0 } 
+    });
+    setPrices(pricesResponse.data);
+    
+    // Limpa os campos de edição
+    setEditingPrice(prev => ({
+      ...prev,
+      [key]: { priceBrl: '', priceUsd: '' }
+    }));
+  } catch {
+    toast.error('Falha ao atualizar preço', {
+      style: {
+        background: 'oklch(0.6368 0.2078 25.3313)',
+        color: 'oklch(1.0000 0 0)',
+        border: 'none',
+        borderRadius: '8px',
+        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+      },
+      duration: 3000,
+      position: 'top-right',
+    });
+  }
+};
+
+const updatePriceInput = (service: string, country: string, type: 'priceBrl' | 'priceUsd', value: string) => {
+  const key = `${service}-${country}`;
+  setEditingPrice(prev => ({
+    ...prev,
+    [key]: {
+      ...prev[key],
+      [type]: value
+    }
+  }));
+};
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-secondary/30 via-background to-primary/10 relative overflow-hidden">
       {/* Background decoration */}
@@ -684,22 +763,56 @@ export default function AdminConfigPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {prices.map((price: Price, index: number) => (
-                          <TableRow key={index} className="border-border/50 hover:bg-muted/50">
-                            <TableCell className="font-medium">{price.service}</TableCell>
-                            <TableCell>{price.country}</TableCell>
-                            <TableCell>
-                              <Badge variant="secondary" className="font-mono">
-                                R$ {price.priceBrl.toFixed(2)}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="outline" className="font-mono">
-                                $ {price.priceUsd.toFixed(2)}
-                              </Badge>
-                            </TableCell>
-                          </TableRow>
-                        ))}
+                        {prices.map((price: Price, index: number) => {
+                          const key = `${price.service}-${price.country}`;
+                          return (
+                            <TableRow key={index} className="border-border/50 hover:bg-muted/50">
+                              <TableCell className="font-medium">{price.service}</TableCell>
+                              <TableCell>{price.country}</TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  <Badge variant="secondary" className="font-mono">
+                                    R$ {price.priceBrl.toFixed(2)}
+                                  </Badge>
+                                  <div className="flex items-center gap-1">
+                                    <Input
+                                      type="number"
+                                      placeholder="Novo valor BRL"
+                                      value={editingPrice[key]?.priceBrl || ''}
+                                      onChange={(e) => updatePriceInput(price.service, price.country, 'priceBrl', e.target.value)}
+                                      className="w-24 h-6 text-xs"
+                                      step="0.01"
+                                    />
+                                  </div>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  <Badge variant="outline" className="font-mono">
+                                    $ {price.priceUsd.toFixed(2)}
+                                  </Badge>
+                                  <div className="flex items-center gap-1">
+                                    <Input
+                                      type="number"
+                                      placeholder="Novo valor USD"
+                                      value={editingPrice[key]?.priceUsd || ''}
+                                      onChange={(e) => updatePriceInput(price.service, price.country, 'priceUsd', e.target.value)}
+                                      className="w-24 h-6 text-xs"
+                                      step="0.01"
+                                    />
+                                    <Button 
+                                      onClick={() => handleUpdateSinglePrice(price.service, price.country)}
+                                      size="sm"
+                                      className="h-6 px-2 bg-blue-600 hover:bg-blue-700"
+                                    >
+                                      <TrendingUp className="w-3 h-3" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
                       </TableBody>
                     </Table>
                   </div>
