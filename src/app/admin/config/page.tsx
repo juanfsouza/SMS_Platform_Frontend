@@ -13,12 +13,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import api from '@/lib/api';
 import { toast, Toaster } from 'sonner';
 import Navbar from '@/components/Navbar';
-import { 
-  RefreshCw, 
-  Users, 
-  CreditCard, 
-  UserPlus, 
-  Settings, 
+import {
+  RefreshCw,
+  Users,
+  CreditCard,
+  UserPlus,
+  Settings,
   Percent,
   DollarSign,
   Banknote,
@@ -28,7 +28,8 @@ import {
   Check,
   X,
   AlertCircle,
-  Info
+  Info,
+  ShoppingCart,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { debounce } from 'lodash';
@@ -69,6 +70,25 @@ interface WithdrawalRequest {
   };
 }
 
+// Definição do tipo PurchaseLog
+interface PurchaseLog {
+  id: number;
+  userId: number;
+  userName: string;
+  userEmail: string;
+  service: string;
+  country: string;
+  phoneNumber: string;
+  creditsSpent: number;
+  userBalance: number;
+  activationId: string | null;
+  status: string;
+  code: string | null;
+  purchaseDate: Date;
+  canRefund: boolean;
+  transactionId?: number;
+}
+
 // Estado centralizado de loading
 interface LoadingState {
   initial: boolean;
@@ -77,6 +97,7 @@ interface LoadingState {
   prices: boolean;
   withdrawals: boolean;
   commission: boolean;
+  purchases: boolean;
 }
 
 // Componente UserRow otimizado
@@ -98,8 +119,8 @@ const UserRow = ({ userData, onBalanceUpdate }: { userData: User, onBalanceUpdat
 
     setIsUpdating(true);
     try {
-      await api.post('/users/balance', { userId: userData.id, amount }, { 
-        headers: { Authorization: `Bearer ${user.token}` } 
+      await api.post('/users/balance', { userId: userData.id, amount }, {
+        headers: { Authorization: `Bearer ${user.token}` }
       });
       toast.success('Saldo adicionado com sucesso');
       setLocalInputs(prev => ({ ...prev, add: '' }));
@@ -117,8 +138,8 @@ const UserRow = ({ userData, onBalanceUpdate }: { userData: User, onBalanceUpdat
 
     setIsUpdating(true);
     try {
-      await api.patch('/users/balance', { userId: userData.id, balance }, { 
-        headers: { Authorization: `Bearer ${user.token}` } 
+      await api.patch('/users/balance', { userId: userData.id, balance }, {
+        headers: { Authorization: `Bearer ${user.token}` }
       });
       toast.success('Saldo atualizado com sucesso');
       setLocalInputs(prev => ({ ...prev, update: '' }));
@@ -132,12 +153,12 @@ const UserRow = ({ userData, onBalanceUpdate }: { userData: User, onBalanceUpdat
 
   const handleResetBalance = useCallback(async () => {
     if (!user?.token || isUpdating) return;
-    
+
     setIsUpdating(true);
     try {
-      await api.delete('/users/balance', { 
-        data: { userId: userData.id }, 
-        headers: { Authorization: `Bearer ${user.token}` } 
+      await api.delete('/users/balance', {
+        data: { userId: userData.id },
+        headers: { Authorization: `Bearer ${user.token}` }
       });
       toast.success('Saldo resetado com sucesso');
       onBalanceUpdate(userData.id);
@@ -177,8 +198,8 @@ const UserRow = ({ userData, onBalanceUpdate }: { userData: User, onBalanceUpdat
               className="w-20 h-8 text-xs"
               disabled={isUpdating}
             />
-            <Button 
-              onClick={handleAddBalance} 
+            <Button
+              onClick={handleAddBalance}
               size="sm"
               className="bg-primary hover:bg-primary/90 h-8 px-2"
               disabled={isUpdating}
@@ -195,9 +216,9 @@ const UserRow = ({ userData, onBalanceUpdate }: { userData: User, onBalanceUpdat
               className="w-20 h-8 text-xs"
               disabled={isUpdating}
             />
-            <Button 
-              onClick={handleUpdateBalance} 
-              size="sm" 
+            <Button
+              onClick={handleUpdateBalance}
+              size="sm"
               variant="outline"
               className="h-8 px-2"
               disabled={isUpdating}
@@ -205,9 +226,9 @@ const UserRow = ({ userData, onBalanceUpdate }: { userData: User, onBalanceUpdat
               <TrendingUp className="w-3 h-3" />
             </Button>
           </div>
-          <Button 
-            onClick={handleResetBalance} 
-            size="sm" 
+          <Button
+            onClick={handleResetBalance}
+            size="sm"
             variant="destructive"
             className="h-8"
             disabled={isUpdating}
@@ -237,7 +258,7 @@ const PriceRow = ({ price, onPriceUpdate }: { price: Price, onPriceUpdate: () =>
   const handleUpdateSinglePrice = useCallback(async () => {
     const priceBrl = parseFloat(localInputs.priceBrl || '0');
     const priceUsd = parseFloat(localInputs.priceUsd || '0');
-    
+
     if (!user?.token || priceBrl <= 0 || priceUsd <= 0 || isUpdating) return;
 
     setIsUpdating(true);
@@ -248,7 +269,7 @@ const PriceRow = ({ price, onPriceUpdate }: { price: Price, onPriceUpdate: () =>
         priceBrl,
         priceUsd
       }, { headers: { Authorization: `Bearer ${user.token}` } });
-      
+
       toast.success('Preço atualizado com sucesso');
       setLocalInputs({ priceBrl: '', priceUsd: '' });
       onPriceUpdate();
@@ -294,7 +315,7 @@ const PriceRow = ({ price, onPriceUpdate }: { price: Price, onPriceUpdate: () =>
               step="0.01"
               disabled={isUpdating}
             />
-            <Button 
+            <Button
               onClick={handleUpdateSinglePrice}
               size="sm"
               className="h-6 px-2 bg-blue-600 hover:bg-blue-700"
@@ -309,6 +330,80 @@ const PriceRow = ({ price, onPriceUpdate }: { price: Price, onPriceUpdate: () =>
   );
 };
 
+// Componente PurchaseLogRow
+const PurchaseLogRow = ({
+  log,
+  onRefund,
+  getStatusBadgeVariant,
+  getStatusText,
+}: {
+  log: PurchaseLog;
+  onRefund: (activationId: string) => void;
+  getStatusBadgeVariant: (status: string) => 'outline' | 'default' | 'destructive' | 'secondary';
+  getStatusText: (status: string) => string;
+}) => {
+  const [isRefunding, setIsRefunding] = useState(false);
+
+  const handleRefundClick = useCallback(async () => {
+    if (!log.activationId || isRefunding) return;
+    if (!confirm('Tem certeza que deseja estornar esta compra?')) return;
+
+    setIsRefunding(true);
+    try {
+      await onRefund(log.activationId);
+    } finally {
+      setIsRefunding(false);
+    }
+  }, [log.activationId, isRefunding, onRefund]);
+
+  return (
+    <TableRow className="border-border/50 hover:bg-muted/50">
+      <TableCell className="font-mono text-sm">{log.id}</TableCell>
+      <TableCell className="font-medium">{log.userName}</TableCell>
+      <TableCell className="text-sm">{log.userEmail}</TableCell>
+      <TableCell>{log.service}</TableCell>
+      <TableCell>{log.country}</TableCell>
+      <TableCell className="font-mono">{log.phoneNumber}</TableCell>
+      <TableCell>
+        <div className="flex items-center gap-2">
+          <Badge variant="secondary" className="font-mono">
+            {log.creditsSpent} créditos
+          </Badge>
+          <Badge variant="outline" className="font-mono">
+            Saldo: {log.userBalance} créditos
+          </Badge>
+        </div>
+      </TableCell>
+      <TableCell>
+        <Badge variant={getStatusBadgeVariant(log.status)}>
+          {getStatusText(log.status)}
+        </Badge>
+      </TableCell>
+      <TableCell className="text-sm text-muted-foreground">
+        {new Date(log.purchaseDate).toLocaleString('pt-BR')}
+      </TableCell>
+      <TableCell>
+        {log.canRefund ? (
+          <Button
+            onClick={handleRefundClick}
+            size="sm"
+            variant="outline"
+            className="h-8 px-3"
+            disabled={isRefunding}
+          >
+            <RotateCcw className="w-3 h-3 mr-1" />
+            Estornar
+          </Button>
+        ) : (
+          <Badge variant="outline" className="text-muted-foreground">
+            {log.status === 'CANCELLED' ? 'Estornado' : 'Não elegível'}
+          </Badge>
+        )}
+      </TableCell>
+    </TableRow>
+  );
+};
+
 export default function AdminConfigPage() {
   const { user } = useAuthStore();
   const router = useRouter();
@@ -317,13 +412,19 @@ export default function AdminConfigPage() {
   const [prices, setPrices] = useState<Price[]>([]);
   const [withdrawalRequests, setWithdrawalRequests] = useState<WithdrawalRequest[]>([]);
   const [affiliateCommission, setAffiliateCommission] = useState(0);
+  const [purchaseLogs, setPurchaseLogs] = useState<PurchaseLog[]>([]);
+  const [logsTotal, setLogsTotal] = useState(0);
+  const [logsPage, setLogsPage] = useState(1);
+  const [userEmailFilter, setUserEmailFilter] = useState<string>(''); // Changed to userEmailFilter
+  const logsLimit = 20;
   const [loading, setLoading] = useState<LoadingState>({
     initial: true,
     users: false,
     markup: false,
     prices: false,
     withdrawals: false,
-    commission: false
+    commission: false,
+    purchases: false
   });
 
   // Carregamento inicial otimizado
@@ -331,7 +432,7 @@ export default function AdminConfigPage() {
     if (!user?.token) return;
 
     setLoading(prev => ({ ...prev, initial: true }));
-    
+
     try {
       // Carrega apenas dados essenciais primeiro
       const [markupResponse, commissionResponse] = await Promise.all([
@@ -354,8 +455,8 @@ export default function AdminConfigPage() {
 
     setLoading(prev => ({ ...prev, users: true }));
     try {
-      const usersResponse = await api.get('/users', { 
-        headers: { Authorization: `Bearer ${user.token}` } 
+      const usersResponse = await api.get('/users', {
+        headers: { Authorization: `Bearer ${user.token}` }
       });
       setUsers(usersResponse.data);
     } catch {
@@ -370,9 +471,9 @@ export default function AdminConfigPage() {
 
     setLoading(prev => ({ ...prev, prices: true }));
     try {
-      const pricesResponse = await api.get('/credits/prices', { 
-        headers: { Authorization: `Bearer ${user.token}` }, 
-        params: { limit: 20, offset: 0 } 
+      const pricesResponse = await api.get('/credits/prices', {
+        headers: { Authorization: `Bearer ${user.token}` },
+        params: { limit: 20, offset: 0 }
       });
       setPrices(pricesResponse.data);
     } catch {
@@ -387,8 +488,8 @@ export default function AdminConfigPage() {
 
     setLoading(prev => ({ ...prev, withdrawals: true }));
     try {
-      const withdrawalsResponse = await api.get('/affiliate/withdrawals', { 
-        headers: { Authorization: `Bearer ${user.token}` } 
+      const withdrawalsResponse = await api.get('/affiliate/withdrawals', {
+        headers: { Authorization: `Bearer ${user.token}` }
       });
       setWithdrawalRequests(withdrawalsResponse.data);
     } catch {
@@ -398,15 +499,33 @@ export default function AdminConfigPage() {
     }
   }, [user?.token, loading.withdrawals]);
 
+  const loadPurchaseLogs = useCallback(async () => {
+    if (!user?.token || loading.purchases) return;
+
+    setLoading(prev => ({ ...prev, purchases: true }));
+    try {
+      const res = await api.get('/admin/purchase-logs', {
+        headers: { Authorization: `Bearer ${user.token}` },
+        params: { page: logsPage, limit: logsLimit, userEmail: userEmailFilter || undefined }
+      });
+      setPurchaseLogs(res.data.logs);
+      setLogsTotal(res.data.total);
+    } catch {
+      toast.error('Falha ao carregar logs de compras');
+    } finally {
+      setLoading(prev => ({ ...prev, purchases: false }));
+    }
+  }, [user?.token, loading.purchases, logsPage, userEmailFilter]);
+
   // Handlers otimizados com debounce
   const debouncedMarkupUpdate = useCallback(
     debounce(async (newMarkup: number) => {
       if (!user?.token) return;
-      
+
       setLoading(prev => ({ ...prev, markup: true }));
       try {
-        await api.post('/credits/update-markup', { percentage: newMarkup }, { 
-          headers: { Authorization: `Bearer ${user.token}` } 
+        await api.post('/credits/update-markup', { percentage: newMarkup }, {
+          headers: { Authorization: `Bearer ${user.token}` }
         });
         toast.success('Markup atualizado com sucesso');
       } catch {
@@ -421,11 +540,11 @@ export default function AdminConfigPage() {
   const debouncedCommissionUpdate = useCallback(
     debounce(async (newCommission: number) => {
       if (!user?.token) return;
-      
+
       setLoading(prev => ({ ...prev, commission: true }));
       try {
-        await api.post('/affiliate/commission', { percentage: newCommission }, { 
-          headers: { Authorization: `Bearer ${user.token}` } 
+        await api.post('/affiliate/commission', { percentage: newCommission }, {
+          headers: { Authorization: `Bearer ${user.token}` }
         });
         toast.success('Comissão de afiliado atualizada com sucesso');
       } catch {
@@ -439,11 +558,11 @@ export default function AdminConfigPage() {
 
   const handleRefreshPrices = useCallback(async () => {
     if (!user?.token || loading.prices) return;
-    
+
     setLoading(prev => ({ ...prev, prices: true }));
     try {
-      await api.post('/credits/refresh-prices', {}, { 
-        headers: { Authorization: `Bearer ${user.token}` } 
+      await api.post('/credits/refresh-prices', {}, {
+        headers: { Authorization: `Bearer ${user.token}` }
       });
       await loadPricesData();
       toast.success('Preços atualizados com sucesso');
@@ -456,18 +575,17 @@ export default function AdminConfigPage() {
 
   const handleUpdateWithdrawalStatus = useCallback(async (withdrawalId: number, status: 'APPROVED' | 'CANCELLED') => {
     if (!user?.token) return;
-    
+
     try {
-      await api.patch(`/affiliate/withdrawals/${withdrawalId}`, { status }, { 
-        headers: { Authorization: `Bearer ${user.token}` } 
+      await api.patch(`/affiliate/withdrawals/${withdrawalId}`, { status }, {
+        headers: { Authorization: `Bearer ${user.token}` }
       });
-      
+
       const statusText = status === 'APPROVED' ? 'aprovada' : 'cancelada';
       toast.success(`Solicitação de saque ${statusText} com sucesso`);
-      
-      // Atualiza apenas o item específico
-      setWithdrawalRequests(prev => 
-        prev.map(request => 
+
+      setWithdrawalRequests(prev =>
+        prev.map(request =>
           request.id === withdrawalId ? { ...request, status } : request
         )
       );
@@ -475,6 +593,58 @@ export default function AdminConfigPage() {
       toast.error('Falha ao atualizar status da solicitação');
     }
   }, [user?.token]);
+
+  const handleProcessAutomaticRefunds = useCallback(async () => {
+    if (!user?.token || loading.purchases) return;
+
+    setLoading(prev => ({ ...prev, purchases: true }));
+    try {
+      const res = await api.post('/admin/process-automatic-refunds', {}, {
+        headers: { Authorization: `Bearer ${user.token}` }
+      });
+      toast.success(`Estornos automáticos processados: ${res.data.processedCount} compras estornadas`);
+      await loadPurchaseLogs();
+    } catch {
+      toast.error('Falha ao processar estornos automáticos');
+    } finally {
+      setLoading(prev => ({ ...prev, purchases: false }));
+    }
+  }, [user?.token, loading.purchases, loadPurchaseLogs]);
+
+  const handleRefund = useCallback(async (activationId: string) => {
+    if (!user?.token) return;
+
+    try {
+      await api.post('/admin/refund', { activationId }, {
+        headers: { Authorization: `Bearer ${user.token}` }
+      });
+      toast.success('Compra estornada com sucesso');
+      await loadPurchaseLogs();
+      await loadUsersData(); // Atualiza saldos de usuários
+    } catch {
+      toast.error('Falha ao estornar compra');
+    }
+  }, [user?.token, loadPurchaseLogs, loadUsersData]);
+
+  const handleRefundUser = useCallback(async (userEmail: string) => {
+    if (!user?.token || loading.purchases) return;
+
+    if (!confirm(`Tem certeza que deseja estornar todas as compras elegíveis do usuário com email ${userEmail}?`)) return;
+
+    setLoading(prev => ({ ...prev, purchases: true }));
+    try {
+      const res = await api.post('/admin/refund-user', { userEmail }, {
+        headers: { Authorization: `Bearer ${user.token}` }
+      });
+      toast.success(`Estornos processados para usuário ${userEmail}: ${res.data.processedCount} compras estornadas`);
+      await loadPurchaseLogs();
+      await loadUsersData(); // Atualiza saldos de usuários
+    } catch {
+      toast.error('Falha ao processar estornos do usuário');
+    } finally {
+      setLoading(prev => ({ ...prev, purchases: false }));
+    }
+  }, [user?.token, loading.purchases, loadPurchaseLogs, loadUsersData]);
 
   // Callbacks para atualizar dados específicos
   const handleUserBalanceUpdate = useCallback(() => {
@@ -488,19 +658,30 @@ export default function AdminConfigPage() {
   // Utilitários memoizados
   const getStatusBadgeVariant = useMemo(() => (status: string) => {
     switch (status) {
-      case 'PENDING': return 'outline';
-      case 'APPROVED': return 'default';
-      case 'CANCELLED': return 'destructive';
-      default: return 'outline';
+      case 'PENDING':
+      case 'WAITING':
+        return 'outline';
+      case 'COMPLETED':
+        return 'default';
+      case 'CANCELLED':
+        return 'destructive';
+      default:
+        return 'outline';
     }
   }, []);
 
   const getStatusText = useMemo(() => (status: string) => {
     switch (status) {
-      case 'PENDING': return 'Pendente';
-      case 'APPROVED': return 'Aprovado';
-      case 'CANCELLED': return 'Cancelado';
-      default: return status;
+      case 'PENDING':
+        return 'Pendente';
+      case 'WAITING':
+        return 'Aguardando';
+      case 'COMPLETED':
+        return 'Completo';
+      case 'CANCELLED':
+        return 'Cancelado';
+      default:
+        return status;
     }
   }, []);
 
@@ -510,9 +691,15 @@ export default function AdminConfigPage() {
       router.push('/');
       return;
     }
-    
+
     fetchInitialData();
   }, [user, router, fetchInitialData]);
+
+  useEffect(() => {
+    if (logsPage > 1 && purchaseLogs.length === 0) {
+      setLogsPage(1);
+    }
+  }, [purchaseLogs.length, logsPage]);
 
   // Componente de Loading otimizado
   if (loading.initial) {
@@ -538,7 +725,7 @@ export default function AdminConfigPage() {
 
       <div className="relative z-10 container mx-auto py-8">
         <Navbar />
-        
+
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -556,16 +743,17 @@ export default function AdminConfigPage() {
             </div>
           </div>
 
-          <Tabs 
-            defaultValue="users" 
+          <Tabs
+            defaultValue="users"
             className="w-full"
             onValueChange={(value) => {
               if (value === 'users' && users.length === 0) loadUsersData();
               if (value === 'credits' && prices.length === 0) loadPricesData();
               if (value === 'affiliate' && withdrawalRequests.length === 0) loadWithdrawalsData();
+              if (value === 'purchases' && purchaseLogs.length === 0) loadPurchaseLogs();
             }}
           >
-            <TabsList className="grid w-full grid-cols-3 mb-8 bg-card/80 backdrop-blur-lg border-0 shadow-lg">
+            <TabsList className="grid w-full grid-cols-4 mb-8 bg-card/80 backdrop-blur-lg border-0 shadow-lg">
               <TabsTrigger value="users" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-medium">
                 <Users className="w-4 h-4 mr-2" />
                 Usuários
@@ -577,6 +765,10 @@ export default function AdminConfigPage() {
               <TabsTrigger value="affiliate" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-medium">
                 <UserPlus className="w-4 h-4 mr-2" />
                 Afiliados
+              </TabsTrigger>
+              <TabsTrigger value="purchases" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-medium">
+                <ShoppingCart className="w-4 h-4 mr-2" />
+                Compras
               </TabsTrigger>
             </TabsList>
 
@@ -593,9 +785,9 @@ export default function AdminConfigPage() {
                         Visualize e gerencie os saldos dos usuários cadastrados no sistema
                       </CardDescription>
                     </div>
-                    <Button 
-                      onClick={loadUsersData} 
-                      variant="outline" 
+                    <Button
+                      onClick={loadUsersData}
+                      variant="outline"
                       size="sm"
                       disabled={loading.users}
                     >
@@ -626,9 +818,9 @@ export default function AdminConfigPage() {
                         </TableHeader>
                         <TableBody>
                           {users.map((userData) => (
-                            <UserRow 
-                              key={userData.id} 
-                              userData={userData} 
+                            <UserRow
+                              key={userData.id}
+                              userData={userData}
                               onBalanceUpdate={handleUserBalanceUpdate}
                             />
                           ))}
@@ -647,7 +839,6 @@ export default function AdminConfigPage() {
             </TabsContent>
 
             <TabsContent value="credits" className="space-y-6">
-              {/* Configuração de Markup */}
               <Card className="shadow-xl border-0 bg-card/80 backdrop-blur-lg">
                 <CardHeader className="pb-6">
                   <CardTitle className="flex items-center gap-2">
@@ -684,9 +875,9 @@ export default function AdminConfigPage() {
                         <Percent className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       </div>
                     </div>
-                    <Button 
-                      onClick={handleRefreshPrices} 
-                      variant="outline" 
+                    <Button
+                      onClick={handleRefreshPrices}
+                      variant="outline"
                       className="h-12 px-6 mt-6 border-border/50 hover:bg-primary hover:text-primary-foreground"
                       disabled={loading.prices}
                     >
@@ -697,7 +888,6 @@ export default function AdminConfigPage() {
                 </CardContent>
               </Card>
 
-              {/* Tabela de Preços */}
               <Card className="shadow-xl border-0 bg-card/80 backdrop-blur-lg">
                 <CardHeader className="pb-6">
                   <div className="flex items-center justify-between">
@@ -710,9 +900,9 @@ export default function AdminConfigPage() {
                         Preços atuais dos serviços por país com markup aplicado
                       </CardDescription>
                     </div>
-                    <Button 
-                      onClick={loadPricesData} 
-                      variant="outline" 
+                    <Button
+                      onClick={loadPricesData}
+                      variant="outline"
                       size="sm"
                       disabled={loading.prices}
                     >
@@ -740,9 +930,9 @@ export default function AdminConfigPage() {
                         </TableHeader>
                         <TableBody>
                           {prices.map((price, index) => (
-                            <PriceRow 
-                              key={`${price.service}-${price.country}-${index}`} 
-                              price={price} 
+                            <PriceRow
+                              key={`${price.service}-${price.country}-${index}`}
+                              price={price}
                               onPriceUpdate={handlePriceUpdate}
                             />
                           ))}
@@ -761,7 +951,6 @@ export default function AdminConfigPage() {
             </TabsContent>
 
             <TabsContent value="affiliate" className="space-y-6">
-              {/* Configuração de Comissão de Afiliados */}
               <Card className="shadow-xl border-0 bg-card/80 backdrop-blur-lg">
                 <CardHeader className="pb-6">
                   <CardTitle className="flex items-center gap-2">
@@ -798,9 +987,9 @@ export default function AdminConfigPage() {
                         <Percent className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       </div>
                     </div>
-                    <Button 
-                      onClick={loadWithdrawalsData} 
-                      variant="outline" 
+                    <Button
+                      onClick={loadWithdrawalsData}
+                      variant="outline"
                       className="h-12 px-6 border-border/50 mt-6 hover:bg-primary hover:text-primary-foreground"
                       disabled={loading.withdrawals}
                     >
@@ -811,7 +1000,6 @@ export default function AdminConfigPage() {
                 </CardContent>
               </Card>
 
-              {/* Tabela de Solicitações de Saque */}
               <Card className="shadow-xl border-0 bg-card/80 backdrop-blur-lg">
                 <CardHeader className="pb-6">
                   <div className="flex items-center justify-between">
@@ -824,9 +1012,9 @@ export default function AdminConfigPage() {
                         Gerencie as solicitações de saque do programa de afiliados
                       </CardDescription>
                     </div>
-                    <Button 
-                      onClick={loadWithdrawalsData} 
-                      variant="outline" 
+                    <Button
+                      onClick={loadWithdrawalsData}
+                      variant="outline"
                       size="sm"
                       disabled={loading.withdrawals}
                     >
@@ -879,7 +1067,7 @@ export default function AdminConfigPage() {
                               <TableCell>
                                 {request.status === 'PENDING' ? (
                                   <div className="flex gap-2">
-                                    <Button 
+                                    <Button
                                       onClick={() => handleUpdateWithdrawalStatus(request.id, 'APPROVED')}
                                       size="sm"
                                       className="bg-green-600 hover:bg-green-700 h-8 px-3"
@@ -887,7 +1075,7 @@ export default function AdminConfigPage() {
                                       <Check className="w-3 h-3 mr-1" />
                                       Aprovar
                                     </Button>
-                                    <Button 
+                                    <Button
                                       onClick={() => handleUpdateWithdrawalStatus(request.id, 'CANCELLED')}
                                       size="sm"
                                       variant="destructive"
@@ -923,6 +1111,139 @@ export default function AdminConfigPage() {
                     <div className="text-center py-12 text-muted-foreground flex flex-col items-center gap-2">
                       <AlertCircle className="w-8 h-8 text-muted-foreground/50" />
                       <p>Nenhuma solicitação de saque encontrada</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="purchases" className="space-y-6">
+              <Card className="shadow-xl border-0 bg-card/80 backdrop-blur-lg">
+                <CardHeader className="pb-6">
+                  <div className="flex items-center justify-between flex-wrap gap-4">
+                    <div>
+                      <CardTitle className="flex items-center gap-2">
+                        <ShoppingCart className="w-5 h-5 text-primary" />
+                        Logs de Compras
+                      </CardTitle>
+                      <CardDescription>
+                        Visualize e gerencie as compras de serviços SMS
+                      </CardDescription>
+                    </div>
+                    <div className="flex gap-2 items-center">
+                      <div className="flex items-center gap-2">
+                        <Label htmlFor="userEmailFilter" className="text-sm font-medium">
+                          Filtrar por Email do Usuário
+                        </Label>
+                        <Input
+                          id="userEmailFilter"
+                          type="email"
+                          placeholder="Email do usuário"
+                          value={userEmailFilter}
+                          onChange={(e) => setUserEmailFilter(e.target.value)}
+                          className="w-32 h-8 text-xs"
+                        />
+                        <Button
+                          onClick={loadPurchaseLogs}
+                          variant="outline"
+                          size="sm"
+                          disabled={loading.purchases}
+                        >
+                          Filtrar
+                        </Button>
+                      </div>
+                      <Button
+                        onClick={() => userEmailFilter && handleRefundUser(userEmailFilter)}
+                        variant="outline"
+                        size="sm"
+                        disabled={loading.purchases || !userEmailFilter}
+                      >
+                        <RotateCcw className={`w-4 h-4 mr-2 ${loading.purchases ? 'animate-spin' : ''}`} />
+                        Estornar Compras do Usuário
+                      </Button>
+                      <Button
+                        onClick={handleProcessAutomaticRefunds}
+                        variant="outline"
+                        size="sm"
+                        disabled={loading.purchases}
+                      >
+                        <RotateCcw className={`w-4 h-4 mr-2 ${loading.purchases ? 'animate-spin' : ''}`} />
+                        Processar Estornos Automáticos
+                      </Button>
+                      <Button
+                        onClick={loadPurchaseLogs}
+                        variant="outline"
+                        size="sm"
+                        disabled={loading.purchases}
+                      >
+                        <RefreshCw className={`w-4 h-4 mr-2 ${loading.purchases ? 'animate-spin' : ''}`} />
+                        Atualizar
+                      </Button>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {loading.purchases ? (
+                    <div className="flex items-center justify-center py-12">
+                      <RefreshCw className="w-6 h-6 animate-spin text-primary mr-2" />
+                      <span>Carregando logs de compras...</span>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="border-border/50">
+                              <TableHead>ID</TableHead>
+                              <TableHead>Usuário</TableHead>
+                              <TableHead>Email</TableHead>
+                              <TableHead>Serviço</TableHead>
+                              <TableHead>País</TableHead>
+                              <TableHead>Telefone</TableHead>
+                              <TableHead>Créditos</TableHead>
+                              <TableHead>Status</TableHead>
+                              <TableHead>Data</TableHead>
+                              <TableHead>Ações</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {purchaseLogs.map((log) => (
+                              <PurchaseLogRow
+                                key={log.id}
+                                log={log}
+                                onRefund={handleRefund}
+                                getStatusBadgeVariant={getStatusBadgeVariant}
+                                getStatusText={getStatusText}
+                              />
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                      <div className="flex justify-between mt-4">
+                        <Button
+                          onClick={() => setLogsPage(prev => Math.max(1, prev - 1))}
+                          disabled={logsPage === 1 || loading.purchases}
+                          variant="outline"
+                        >
+                          Anterior
+                        </Button>
+                        <span className="self-center text-muted-foreground">
+                          Página {logsPage} de {Math.ceil(logsTotal / logsLimit)}
+                        </span>
+                        <Button
+                          onClick={() => setLogsPage(prev => prev + 1)}
+                          disabled={(logsPage * logsLimit) >= logsTotal || loading.purchases}
+                          variant="outline"
+                        >
+                          Próxima
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                  {!loading.purchases && purchaseLogs.length === 0 && (
+                    <div className="text-center py-12 text-muted-foreground flex flex-col items-center gap-2">
+                      <AlertCircle className="w-8 h-8 text-muted-foreground/50" />
+                      <p>Nenhum log de compra encontrado</p>
                     </div>
                   )}
                 </CardContent>

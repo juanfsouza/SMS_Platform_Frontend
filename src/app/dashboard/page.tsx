@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import api from '@/lib/api';
-import { Copy, Wallet, TrendingUp, Star, Globe, Sparkles, CreditCard, Loader2, MessageSquare } from 'lucide-react';
+import { Copy, Wallet, TrendingUp, Star, Globe, Sparkles, CreditCard, Loader2, MessageSquare, Info } from 'lucide-react';
 import { ServiceList } from '@/components/ServiceList';
 import { COUNTRY_ID_TO_ISO } from '@/data/countryMapping';
 import { POPULAR_SERVICES, SERVICE_NAME_MAP } from '@/data/services';
@@ -17,6 +17,7 @@ import { debounce } from 'lodash';
 import { getName } from 'country-list';
 import { PurchaseModal } from '@/components/PurchaseModal';
 import DepositForm from '@/components/DepositForm';
+import FloatingButton from '@/components/FloatingButton';
 
 interface PriceData {
   service: string;
@@ -350,6 +351,7 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-secondary/20 to-primary/5">
       <Navbar />
+      <FloatingButton />
       <div className="pt-24 pb-8">
         <div className="container mx-auto px-6">
           <div className="text-center mb-12">
@@ -494,6 +496,12 @@ export default function DashboardPage() {
               </p>
             </CardHeader>
             <CardContent>
+              <div className="flex items-center gap-2 p-3 mb-4 rounded-lg bg-blue-50 border border-blue-200">
+                <Info className="w-4 h-4 text-blue-600" />
+                <p className="text-sm font-medium text-blue-600">
+                  R$1.00 = 1.00 créditos
+                </p>
+              </div>
               <DepositForm />
             </CardContent>
           </Card>
