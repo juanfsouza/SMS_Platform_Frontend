@@ -167,7 +167,7 @@ export default function Navbar() {
                       
                       {user?.role === 'admin' && (
                         <DropdownMenuItem asChild className="rounded-lg">
-                          <Link href="/admin/config" className="flex items-center px-3 py-2 cursor-pointer">
+                          <Link href="/mod/config" className="flex items-center px-3 py-2 cursor-pointer">
                             <Settings className="mr-3 h-4 w-4 text-muted-foreground" />
                             <span>Configurações</span>
                           </Link>
