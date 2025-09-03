@@ -13,7 +13,7 @@ import { toast, Toaster } from 'sonner';
 import api from '@/lib/api';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Eye, EyeOff, Mail, Lock, LogIn, Loader2, Shield, Info } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, LogIn, Loader2, Shield } from 'lucide-react';
 import { Icon } from '@iconify/react';
 import { motion } from 'framer-motion';
 import { Turnstile, TurnstileRef } from '@/components/ui/turnstile';
@@ -41,7 +41,6 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const turnstileRef = useRef<TurnstileRef>(null);
-  const [showEmailNotice, setShowEmailNotice] = useState(false);
 
   const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
@@ -89,7 +88,6 @@ export default function LoginPage() {
       const role = decoded?.role || 'USER';
 
       if (!user.emailVerified) {
-        setShowEmailNotice(true);
         toast.warning('Recomendamos verificar seu e-mail para maior segurança da conta.', {
           style: {
             background: 'oklch(0.6368 0.1541 72.3808)',

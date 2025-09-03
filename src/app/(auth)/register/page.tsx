@@ -13,7 +13,7 @@ import api from '@/lib/api';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Suspense } from 'react';
-import { Eye, EyeOff, Mail, Lock, User, Users, UserPlus, Loader2, CheckCircle, Shield, Info } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, User, Users, UserPlus, Loader2, CheckCircle, Shield } from 'lucide-react';
 import { Icon } from '@iconify/react';
 import { motion } from 'framer-motion';
 import React from 'react';

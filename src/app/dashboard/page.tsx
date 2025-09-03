@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import api from '@/lib/api';
-import { Copy, Wallet, TrendingUp, Star, Globe, Sparkles, CreditCard, Loader2, MessageSquare, Info, Search, Filter, ArrowRight } from 'lucide-react';
+import { Copy, Wallet, TrendingUp, Star, Globe, Sparkles, CreditCard, Loader2, MessageSquare, Info, Filter, ArrowRight } from 'lucide-react';
 import { ServiceList } from '@/components/ServiceList';
 import { COUNTRY_ID_TO_ISO } from '@/data/countryMapping';
 import { POPULAR_SERVICES, SERVICE_NAME_MAP, SIMPLE_ICONS_MAP } from '@/data/services';
@@ -600,7 +600,7 @@ export default function DashboardPage() {
                     variants={staggerContainer}
                     className="space-y-4"
                   >
-                    {activations.map((activation, index) => (
+                    {activations.map((activation) => (
                       <motion.div
                         key={activation.activationId}
                         variants={fadeInUp}
