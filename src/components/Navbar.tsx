@@ -147,7 +147,7 @@ export default function Navbar() {
                       <div className="relative">
                         <Avatar className="w-9 h-9 ring-2 ring-offset-2 ring-white/20 transition-all duration-300 hover:ring-offset-4">
                           <AvatarFallback className="bg-gradient-to-br from-primary to-primary/80 text-primary-foreground font-custom-bold text-sm">
-                            {user.name.charAt(0).toUpperCase()}
+
                           </AvatarFallback>
                         </Avatar>
                         <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-400 rounded-full border-2 border-white shadow-sm" />

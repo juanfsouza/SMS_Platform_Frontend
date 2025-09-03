@@ -13,20 +13,30 @@ import api from '@/lib/api';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Suspense } from 'react';
-import { Eye, EyeOff, Mail, Lock, User, Users, UserPlus, Loader2, CheckCircle, Shield } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, Users, UserPlus, Loader2, CheckCircle, Shield } from 'lucide-react';
 import { Icon } from '@iconify/react';
 import { motion } from 'framer-motion';
 import React from 'react';
 import { Turnstile, TurnstileRef } from '@/components/ui/turnstile';
+import { useAuthStore } from '@/stores/auth'; // Importar o store de auth
 
 const registerSchema = z.object({
-  name: z.string().min(2, 'O nome deve ter pelo menos 2 caracteres'),
   email: z.string().email('Endereço de email inválido'),
   password: z.string().min(6, 'A senha deve ter pelo menos 6 caracteres'),
   affiliateCode: z.string().optional(),
 });
 
 type RegisterForm = z.infer<typeof registerSchema>;
+
+// Função para decodificar o token JWT
+const decodeToken = (token: string) => {
+  try {
+    const payload = token.split('.')[1];
+    return JSON.parse(atob(payload));
+  } catch {
+    return null;
+  }
+};
 
 export default function RegisterPage() {
   return (
@@ -46,6 +56,7 @@ export default function RegisterPage() {
 function RegisterContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { setUser } = useAuthStore(); // Store para salvar dados do usuário
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [passwordStrength, setPasswordStrength] = useState(0);
@@ -122,26 +133,86 @@ function RegisterContent() {
 
     setIsLoading(true);
     try {
-      await api.post('/auth/register', {
+      const response = await api.post('/auth/register', {
         ...data,
         turnstileToken,
       });
-      setIsRegistered(true);
-      // Mudança: Mensagem atualizada para refletir que a verificação é opcional
-      toast.success('Conta criada com sucesso! Você já pode fazer login. Um e-mail de verificação foi enviado (opcional).', {
-        style: {
-          background: 'oklch(0.6936 0.164 254.35)',
-          color: 'oklch(1.0000 0 0)',
-          border: 'none',
-          borderRadius: '8px',
-          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-        },
-        duration: 6000,
-      });
-      // Mudança: Reduzido o tempo de redirecionamento
-      setTimeout(() => {
-        router.push('/login');
-      }, 3000);
+
+      // Se o registro foi bem-sucedido e retornou dados do usuário
+      if (response.data.success && response.data.user) {
+        const { user, token } = response.data.user;
+        
+        // Decodificar token para obter role
+        const decoded = decodeToken(token);
+        const role = decoded?.role || 'USER';
+
+        // Fazer login automático salvando dados no store
+        setUser({
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          balance: user.balance,
+          affiliateBalance: user.affiliateBalance || 0,
+          affiliateLink: null,
+          token,
+          role,
+          emailVerified: user.emailVerified,
+        });
+
+        setIsRegistered(true);
+        
+        // Mensagem de sucesso
+        toast.success('Conta criada com sucesso! Redirecionando para o dashboard...', {
+          style: {
+            background: 'oklch(0.6936 0.164 254.35)',
+            color: 'oklch(1.0000 0 0)',
+            border: 'none',
+            borderRadius: '8px',
+            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+          },
+          duration: 4000,
+        });
+
+        // Mostrar mensagem sobre verificação de email se não verificado
+        if (!user.emailVerified) {
+          setTimeout(() => {
+            toast.info('Recomendamos verificar seu e-mail para maior segurança da conta.', {
+              style: {
+                background: 'oklch(0.6368 0.1541 72.3808)',
+                color: 'oklch(1.0000 0 0)',
+                border: 'none',
+                borderRadius: '8px',
+                boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+              },
+              duration: 4000,
+            });
+          }, 1000);
+        }
+
+        // Redirecionar para dashboard
+        setTimeout(() => {
+          router.push('/dashboard');
+        }, 2000);
+
+      } else {
+        // Fallback para o comportamento antigo se não retornar dados do usuário
+        setIsRegistered(true);
+        toast.success('Conta criada com sucesso! Redirecionando para o login...', {
+          style: {
+            background: 'oklch(0.6936 0.164 254.35)',
+            color: 'oklch(1.0000 0 0)',
+            border: 'none',
+            borderRadius: '8px',
+            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+          },
+          duration: 4000,
+        });
+        
+        setTimeout(() => {
+          router.push('/login');
+        }, 2000);
+      }
+
     } catch (error: unknown) {
       const errorMessage = error instanceof Error && 'response' in error && error.response && typeof error.response === 'object' && 'data' in error.response && error.response.data && typeof error.response.data === 'object' && 'message' in error.response.data && typeof error.response.data.message === 'string'
         ? error.response.data.message
@@ -198,37 +269,6 @@ function RegisterContent() {
           
           <CardContent className="space-y-6">
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-              <motion.div
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.3 }}
-                className="space-y-2"
-              >
-                <Label htmlFor="name" className="text-foreground font-medium flex items-center gap-2">
-                  <User className="w-4 h-4 text-primary" />
-                  Nome completo
-                </Label>
-                <div className="relative">
-                  <Input
-                    id="name"
-                    type="text"
-                    {...register('name')}
-                    className="pl-10 h-12 border-border/50 bg-background/50 backdrop-blur-sm focus:border-primary transition-all duration-200"
-                    placeholder="João Silva"
-                  />
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                </div>
-                {errors.name && (
-                  <motion.p
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    className="text-destructive text-sm flex items-center gap-1"
-                  >
-                    <Icon icon="material-symbols:error" className="w-4 h-4" />
-                    {errors.name.message}
-                  </motion.p>
-                )}
-              </motion.div>
 
               <motion.div
                 initial={{ opacity: 0, x: -20 }}
@@ -418,7 +458,7 @@ function RegisterContent() {
                 <div>
                   <p className="font-medium">Conta criada com sucesso!</p>
                   <p className="text-green-600/80 text-xs mt-1">
-                    Redirecionando para o login... Você já pode acessar sua conta.
+                    Redirecionando para o dashboard...
                   </p>
                 </div>
               </motion.div>
