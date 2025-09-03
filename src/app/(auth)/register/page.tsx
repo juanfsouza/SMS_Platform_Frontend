@@ -13,7 +13,7 @@ import api from '@/lib/api';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Suspense } from 'react';
-import { Eye, EyeOff, Mail, Lock, User, Users, UserPlus, Loader2, CheckCircle, Shield } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, User, Users, UserPlus, Loader2, CheckCircle, Shield, Info } from 'lucide-react';
 import { Icon } from '@iconify/react';
 import { motion } from 'framer-motion';
 import React from 'react';
@@ -127,19 +127,21 @@ function RegisterContent() {
         turnstileToken,
       });
       setIsRegistered(true);
-      toast.success('Usuário registrado com sucesso! Verifique seu e-mail para confirmar.', {
+      // Mudança: Mensagem atualizada para refletir que a verificação é opcional
+      toast.success('Conta criada com sucesso! Você já pode fazer login. Um e-mail de verificação foi enviado (opcional).', {
         style: {
-          background: 'oklch(0.6171 0.1375 39.0427)',
+          background: 'oklch(0.6936 0.164 254.35)',
           color: 'oklch(1.0000 0 0)',
           border: 'none',
           borderRadius: '8px',
           boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
         },
-        duration: 5000,
+        duration: 6000,
       });
+      // Mudança: Reduzido o tempo de redirecionamento
       setTimeout(() => {
         router.push('/login');
-      }, 5000);
+      }, 3000);
     } catch (error: unknown) {
       const errorMessage = error instanceof Error && 'response' in error && error.response && typeof error.response === 'object' && 'data' in error.response && error.response.data && typeof error.response.data === 'object' && 'message' in error.response.data && typeof error.response.data.message === 'string'
         ? error.response.data.message
@@ -410,21 +412,17 @@ function RegisterContent() {
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 transition={{ duration: 0.3 }}
-                className="text-sm text-yellow-600 bg-yellow-100/50 p-3 rounded-lg flex items-center gap-2"
+                className="text-sm text-green-600 bg-green-100/50 p-3 rounded-lg flex items-center gap-2"
               >
-                <Icon icon="material-symbols:warning" className="w-5 h-5" />
-                Caso não encontre o código de verificação no seu e-mail, por favor, verifique a pasta de spam ou lixo eletrônico.
+                <CheckCircle className="w-5 h-5" />
+                <div>
+                  <p className="font-medium">Conta criada com sucesso!</p>
+                  <p className="text-green-600/80 text-xs mt-1">
+                    Redirecionando para o login... Você já pode acessar sua conta.
+                  </p>
+                </div>
               </motion.div>
             )}
-
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.8 }}
-              className="text-center"
-            >
-              {/* Existing footer content */}
-            </motion.div>
 
             <motion.div
               initial={{ opacity: 0 }}

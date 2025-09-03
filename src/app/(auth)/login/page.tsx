@@ -13,7 +13,7 @@ import { toast, Toaster } from 'sonner';
 import api from '@/lib/api';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Eye, EyeOff, Mail, Lock, LogIn, Loader2, Shield } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, LogIn, Loader2, Shield, Info } from 'lucide-react';
 import { Icon } from '@iconify/react';
 import { motion } from 'framer-motion';
 import { Turnstile, TurnstileRef } from '@/components/ui/turnstile';
@@ -41,6 +41,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const turnstileRef = useRef<TurnstileRef>(null);
+  const [showEmailNotice, setShowEmailNotice] = useState(false);
 
   const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
@@ -88,19 +89,17 @@ export default function LoginPage() {
       const role = decoded?.role || 'USER';
 
       if (!user.emailVerified) {
-        toast.error('Por favor, confirme seu e-mail primeiro.', {
+        setShowEmailNotice(true);
+        toast.warning('Recomendamos verificar seu e-mail para maior segurança da conta.', {
           style: {
-            background: 'oklch(0.6368 0.2078 25.3313)',
+            background: 'oklch(0.6368 0.1541 72.3808)',
             color: 'oklch(1.0000 0 0)',
             border: 'none',
             borderRadius: '8px',
             boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
           },
-          duration: 5000,
+          duration: 4000,
         });
-        turnstileRef.current?.reset();
-        setTurnstileToken(null);
-        return;
       }
 
       setUser({
@@ -115,15 +114,15 @@ export default function LoginPage() {
         emailVerified: user.emailVerified,
       });
 
-      toast.success('Logado com sucesso', {
+      toast.success('Login realizado com sucesso!', {
         style: {
-          background: 'oklch(0.6171 0.1375 39.0427)',
+          background: 'oklch(0.6936 0.164 254.35)',
           color: 'oklch(1.0000 0 0)',
           border: 'none',
           borderRadius: '8px',
           boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
         },
-        duration: 5000,
+        duration: 3000,
       });
       router.push('/dashboard');
     } catch (error: unknown) {

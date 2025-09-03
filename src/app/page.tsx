@@ -1,13 +1,8 @@
 "use client";
 
-import AboutSection from '@/components/AboutSection';
 import HeroSection from '@/components/HeroSection';
-import ServiceSection from '@/components/ServiceSection';
 import Navbar from '@/components/Navbar';
-import ChannelsSection from '@/components/ChannelsSection';
-import FooterSection from '@/components/FooterSection';
 import { usePageLoading } from '@/hooks/usePageLoading';
-import FloatingButton from '@/components/FloatingButton';
 
 export default function Home() {
   const { 
@@ -30,12 +25,8 @@ export default function Home() {
         }}
       >
         <Navbar />
-        <FloatingButton />
         <HeroSection />
-        <AboutSection />
-        <ServiceSection />
-        <ChannelsSection />
-        <FooterSection />
+
       </div>
     </>
   );

@@ -35,7 +35,7 @@ export default function ForgotPasswordPage() {
       await api.post('/auth/forgot-password', data);
       toast.success('Um e-mail com instruções para redefinir sua senha foi enviado!', {
         style: {
-          background: 'oklch(0.6171 0.1375 39.0427)',
+          background: 'oklch(0.6936 0.164 254.35)',
           color: 'oklch(1.0000 0 0)',
           border: 'none',
           borderRadius: '8px',

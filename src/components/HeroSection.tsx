@@ -1,252 +1,296 @@
-"use client";
+import React, { useState, useEffect } from 'react';
+import { Shield, Users, Globe, MessageCircle, Phone, Zap, ChevronDown, CheckCircle, ArrowRight } from 'lucide-react';
 
-import { useState, useMemo, memo } from 'react';
-import { Icon } from '@iconify/react';
-import Image from 'next/image';
-import { WordRotate } from './ui/word-rotate';
-import Link from 'next/link';
-
-export default function HeroSection() {
-
-// Componente memorizado para os badges
-const FeatureBadge = memo(({ icon, text }: { icon: string; text: string }) => (
-  <div className="flex items-center gap-2 bg-card rounded-full px-4 py-2 border">
-    <Icon icon={icon} className="text-primary text-lg" />
-    <span className="text-sm font-medium">{text}</span>
-  </div>
-));
-
-// Componente memorizado para o mini chart
-const MiniChart = memo(({ data, weekDays }: { data: number[]; weekDays: string[] }) => (
-  <div className="flex items-end gap-1 h-12">
-    {data.map((value, index) => (
-      <div key={index} className="flex-1 flex flex-col items-center">
-        <div 
-          className="w-full bg-primary/60 rounded-t-sm will-change-transform"
-          style={{ 
-            height: `${value}%`,
-            transition: 'height 1s cubic-bezier(0.4, 0, 0.2, 1)'
-          }}
-        ></div>
-        <span className="text-xs text-muted-foreground mt-1">{weekDays[index]}</span>
-      </div>
-    ))}
-  </div>
-));
-
-// Componente memorizado para os ícones flutuantes
-const FloatingIcon = memo(({ channel, index }: { 
-  channel: { icon: string; color: string; name: string }; 
-  index: number; 
-}) => (
-  <div
-    className={`absolute w-14 h-14 ${channel.color} rounded-xl sm:flex hidden items-center justify-center shadow-lg will-change-transform`}
-    style={{
-      top: `${20 + (index * 12)}%`,
-      left: index % 2 === 0 ? '-5%' : '100%',
-      animation: `float 3s ease-in-out infinite ${index * 0.5}s`,
-    }}
-  >
-    <Icon icon={channel.icon} className="text-white text-xl" />
-  </div>
-));
-
-// Componente memorizado para preview de mensagem
-const MessagePreview = memo(({ icon, platform, message, bgColor }: { 
-  icon: string; 
-  platform: string; 
-  message: string; 
-  bgColor: string; 
-}) => (
-  <div className={`${bgColor} rounded-lg p-3`}>
-    <div className="flex items-center gap-2 mb-1">
-      <Icon icon={icon} className="text-green-500" />
-      <span className="text-xs font-medium">{platform}</span>
-    </div>
-    <p className="text-sm">{message}</p>
-  </div>
-));
-
-FeatureBadge.displayName = 'FeatureBadge';
-MiniChart.displayName = 'MiniChart';
-FloatingIcon.displayName = 'FloatingIcon';
-MessagePreview.displayName = 'MessagePreview';
-  const [stats] = useState({
-    engagement: 4200,
-    growthRate: 14
+const HeroSection = () => {
+  const [stats, setStats] = useState({
+    deliveryRate: 0,
+    numbers: 0,
+    clients: 0,
+    countries: 0
   });
 
-  // Memoizar dados estáticos
-  const staticData = useMemo(() => ({
-    channels: [
-      { icon: 'mdi:instagram', color: 'bg-pink-500', name: 'SMS' },
-      { icon: 'mdi:whatsapp', color: 'bg-green-500', name: 'WhatsApp' },
-      { icon: 'simple-icons:viber', color: 'bg-purple-500', name: 'Viber' },
-      { icon: 'mdi:flash', color: 'bg-yellow-500', name: 'FlashCall' },
-      { icon: 'mdi:twitter', color: 'bg-blue-500', name: 'Cascade' },
-      { icon: 'mdi:telegram', color: 'bg-cyan-500', name: 'Telegram' }
-    ],
-    weekDays: ['S', 'M', 'T', 'W', 'T', 'F', 'S'],
-    chartData: [40, 65, 45, 80, 90, 75, 95],
-    features: [
-      { icon: 'mdi:check-circle', text: 'Entrega 100% Garantida' },
-      { icon: 'mdi:lightning-bolt', text: 'Envio Instantâneo' },
-      { icon: 'mdi:shield-check', text: 'Suporte 24/7' }
-    ],
-    messages: [
-      { icon: 'mdi:whatsapp', platform: 'WhatsApp', message: 'Mensagem enviada com sucesso!', bgColor: 'bg-primary/10' },
-      { icon: 'mdi:message-text', platform: 'SMS', message: 'Campanha finalizada', bgColor: 'bg-muted/50' }
-    ]
-  }), []);
+  // Animação dos números
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setStats({
+        deliveryRate: 100,
+        numbers: 100,
+        clients: 3,
+        countries: 60
+      });
+    }, 500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const features = [
+    { icon: Shield, text: 'Sem KYC' },
+    { icon: Users, text: 'Anônimo' },
+    { icon: CheckCircle, text: 'Seguro' },
+    { icon: Zap, text: 'Barato' }
+  ];
+
+  const securityFeatures = [
+    {
+      title: 'Anonimato',
+      description: 'Sem KYC. Coletamos apenas o essencial para autenticação. Sem rastreamento de perfis.',
+      icon: Shield
+    },
+    {
+      title: 'Proteção',
+      description: 'TLS, segregação por região e rotação de números. Monitoramento ativo de fraude.',
+      icon: Globe
+    },
+    {
+      title: 'Controle',
+      description: 'Autogestão no painel, histórico local e expurgo automático de dados sensíveis.',
+      icon: Users
+    }
+  ];
+
+  const faqItems = [
+    { question: 'É anônimo?', answer: 'Sim, não requeremos KYC e mantemos apenas dados essenciais.' },
+    { question: 'Quais serviços?', answer: 'Oferecemos números virtuais para SMS de verificação de todas as principais plataformas.' },
+    { question: 'É barato?', answer: 'Sim, oferecemos preços competitivos com ótimo custo-benefício.' },
+    { question: 'Como pago?', answer: 'Aceitamos diversas formas de pagamento incluindo criptomoedas.' }
+  ];
+
+  // Define the props type for AnimatedNumber
+  interface AnimatedNumberProps {
+    value: number;
+    suffix?: string;
+  }
+
+  const AnimatedNumber = ({ value, suffix = '' }: AnimatedNumberProps) => {
+    const [current, setCurrent] = useState(0);
+    
+    useEffect(() => {
+      if (value === 0) return;
+      const increment = value / 50;
+      const timer = setInterval(() => {
+        setCurrent(prev => {
+          const next = prev + increment;
+          if (next >= value) {
+            clearInterval(timer);
+            return value;
+          }
+          return next;
+        });
+      }, 30);
+      return () => clearInterval(timer);
+    }, [value]);
+    
+    return (
+      <span className="font-bold text-2xl">
+        {Math.floor(current)}{suffix}
+      </span>
+    );
+  };
 
   return (
-    <div className="min-h-screen mt-10 bg-gradient-to-br from-background via-muted/30 to-secondary/20 relative overflow-hidden">
-      {/* Background decorations otimizadas */}
-      <div className="absolute inset-0 will-change-transform">
-        <div className="absolute top-20 right-20 w-64 h-64 bg-primary/10 rounded-full blur-3xl transform-gpu"></div>
-        <div className="absolute bottom-20 left-20 w-48 h-48 bg-secondary/20 rounded-full blur-2xl transform-gpu"></div>
-      </div>
+    <div className="min-h-screen bg-gray-900 text-white">
+      {/* Hero Section */}
+      <section className="relative overflow-hidden pt-32 pb-20">
+        {/* Background gradients */}
+        <div className="absolute inset-0">
+          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-600/20 rounded-full blur-3xl"></div>
+          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl"></div>
+        </div>
 
-      <div className="container mx-auto px-4 py-20 relative z-10">
-        <div className="grid lg:grid-cols-2 gap-12 items-center">
-          {/* Left Content */}
-          <div className="space-y-8">
-            <div className="space-y-6">
-              <h1 className="text-5xl lg:text-7xl text-foreground font-custom-bold">
-                Plataforma de{' '}
-                <WordRotate
-                  className="text-primary"
-                  words={["Mensagens", "WhatsApp", "Telegram", "Discord", "Instagram"]}
-                />
-                Para varios{' '}
-                <span className="text-primary">Numeros</span>
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
+            {/* Left Content */}
+            <div className="space-y-8">
+              {/* Feature badges */}
+              <div className="flex flex-wrap gap-3">
+                {features.map((feature, index) => (
+                  <div key={index} className="flex items-center gap-2 bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-full px-4 py-2">
+                    <feature.icon className="w-4 h-4 text-green-400" />
+                    <span className="text-sm font-medium text-gray-300">{feature.text}</span>
+                  </div>
+                ))}
+              </div>
+
+              <h1 className="text-5xl lg:text-6xl font-bold leading-tight">
+                Números de{' '}
+                <span className="bg-gradient-to-r from-purple-400 to-purple-600 bg-clip-text text-transparent">
+                  SMS
+                </span>{' '}
+                para verificação em{' '}
+                <span className="bg-gradient-to-r from-blue-400 to-blue-600 bg-clip-text text-transparent">
+                  dezenas de países
+                </span>
               </h1>
-              
-              <p className="text-xl text-muted-foreground font-bold max-w-2xl">
-                Com o FDX SMS, você tem acesso a uma ampla seleção de números virtuais para SMS, permitindo que você receba verificação por SMS sem a necessidade de um cartão SIM físico.
+
+              <p className="text-xl text-gray-400 leading-relaxed">
+                Privacidade primeiro. Ative WhatsApp, Facebook, Instagram e mais com SMS sob demanda. 
+                Cobertura global, latência baixa e preços acessíveis.
               </p>
-              
-              <div className="flex flex-wrap gap-4 pt-4">
-                {staticData.features.map((feature, index) => (
-                  <FeatureBadge key={index} icon={feature.icon} text={feature.text} />
-                ))}
+
+              <div className="flex flex-col sm:flex-row gap-4">
+                <button className="bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 px-8 py-4 rounded-lg text-lg font-semibold transition-all duration-200 flex items-center gap-2 group">
+                  Começar agora
+                  <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                </button>
+                <button className="border border-gray-600 hover:border-gray-500 px-8 py-4 rounded-lg text-lg font-semibold transition-colors">
+                  Já tenho conta
+                </button>
+              </div>
+
+              {/* Trust indicators */}
+              <div className="flex items-center gap-6 text-sm text-gray-400">
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-green-400" />
+                  <span>Criptografia em trânsito</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-green-400" />
+                  <span>Rotação de números</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-green-400" />
+                  <span>Painel em tempo real</span>
+                </div>
               </div>
             </div>
 
-            <div className="pt-6">
-            <Link href="/login">
-              <button className="bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-4 rounded-xl text-lg font-semibold transition-colors duration-200 shadow-lg hover:shadow-xl will-change-transform">
-                Solicitar Meu SMS
-              </button>
-            </Link>
-            </div>
-          </div>
-
-          {/* Right Content - Interactive Demo */}
-          <div className="relative">
-            {/* Main Phone Mockup */}
-            <div className="font-custom-bold relative mx-auto w-80 h-96 bg-card rounded-3xl shadow-2xl border p-6 will-change-transform transition-transform duration-500 hover:rotate-0" style={{ transform: 'rotate(3deg)' }}>
-              {/* Phone Header */}
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-primary/20 rounded-full flex items-center justify-center">
-                    <Icon icon="mdi:message-text" className="text-primary text-xl" />
+            {/* Right Content - Dashboard Preview */}
+            <div className="relative">
+              <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl border border-gray-700/50 p-6 shadow-2xl backdrop-blur-lg">
+                {/* Header */}
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <Shield className="w-8 h-8 text-purple-500" />
+                    <div>
+                      <h3 className="font-semibold text-lg">FDX SMS</h3>
+                      <p className="text-sm text-gray-400">Painel em tempo real</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-sm">FDX SMS</h3>
-                    <p className="text-xs text-muted-foreground">Dashboard</p>
+                  <button className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg text-sm transition-colors">
+                    Entrar
+                  </button>
+                </div>
+
+                {/* Stats Grid */}
+                <div className="grid grid-cols-2 gap-4 mb-6">
+                  <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700/30">
+                    <p className="text-sm text-gray-400 mb-1">Taxa de entrega</p>
+                    <p className="text-2xl font-bold text-green-400">
+                      <AnimatedNumber value={stats.deliveryRate} suffix="%" />
+                    </p>
+                  </div>
+                  <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700/30">
+                    <p className="text-sm text-gray-400 mb-1">Números disponíveis</p>
+                    <p className="text-2xl font-bold text-purple-400">
+                      +<AnimatedNumber value={stats.numbers} suffix="M" />
+                    </p>
+                  </div>
+                  <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700/30">
+                    <p className="text-sm text-gray-400 mb-1">Clientes</p>
+                    <p className="text-2xl font-bold text-blue-400">
+                      +<AnimatedNumber value={stats.clients} suffix=" mil" />
+                    </p>
+                  </div>
+                  <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700/30">
+                    <p className="text-sm text-gray-400 mb-1">Países</p>
+                    <p className="text-2xl font-bold text-orange-400">
+                      +<AnimatedNumber value={stats.countries} />
+                    </p>
                   </div>
                 </div>
-                <div className="flex gap-1">
-                  <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                  <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+
+                {/* Preview Dashboard */}
+                <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl p-4 border border-gray-700/30">
+                  <h4 className="text-center text-gray-400 mb-4">Prévia do dashboard</h4>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between bg-gray-800/30 rounded-lg p-3">
+                      <div className="flex items-center gap-3">
+                        <MessageCircle className="w-5 h-5 text-green-400" />
+                        <span className="text-sm">WhatsApp +1-555-0123</span>
+                      </div>
+                      <span className="text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded">Ativo</span>
+                    </div>
+                    <div className="flex items-center justify-between bg-gray-800/30 rounded-lg p-3">
+                      <div className="flex items-center gap-3">
+                        <Phone className="w-5 h-5 text-blue-400" />
+                        <span className="text-sm">SMS +44-20-7946</span>
+                      </div>
+                      <span className="text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded">Pendente</span>
+                    </div>
+                  </div>
                 </div>
               </div>
-
-              {/* Stats Card */}
-              <div className="bg-gradient-to-r from-primary/10 to-primary/5 rounded-2xl p-4 mb-6">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-semibold text-sm">Engajamento de Clientes</h4>
-                  <span className="text-green-600 text-sm font-medium">+{stats.growthRate}%</span>
-                </div>
-                <div className="text-2xl font-bold text-primary mb-3">
-                  +{stats.engagement.toLocaleString()}
-                </div>
-                
-                <MiniChart data={staticData.chartData} weekDays={staticData.weekDays} />
-              </div>
-
-              {/* Message Preview */}
-              <div className="space-y-3">
-                {staticData.messages.map((msg, index) => (
-                  <MessagePreview
-                    key={index}
-                    icon={msg.icon}
-                    platform={msg.platform}
-                    message={msg.message}
-                    bgColor={msg.bgColor}
-                  />
-                ))}
-              </div>
-            </div>
-
-            {/* Floating Channel Icons */}
-            <div className="absolute inset-0 pointer-events-none">
-              <Image
-                src="/hero.png"
-                alt="Phone Demo"
-                width={550}
-                height={550}
-                className="h-auto w-[550px] lg:ml-5 lg:p-0 md:ml-10 xl:ml-40 mt-15 lg:mt-10"
-                priority
-                loading="eager"
-                quality={85}
-              />
-              {staticData.channels.map((channel, index) => (
-                <FloatingIcon key={channel.name} channel={channel} index={index} />
-              ))}
             </div>
           </div>
         </div>
+      </section>
 
-        {/* Bottom Section */}
-        <div className="mt-24 text-center">
-          <h2 className="text-2xl text-foreground mb-4 font-custom-bold">
-            Mantenha-se conectado com seus clientes o tempo todo
-          </h2>
-          <p className="text-md text-muted-foreground font-bold max-w-4xl mx-auto">
-            Nossa plataforma de mensagens é uma ferramenta confiável e eficaz para o engajamento de clientes. 
-            A ImLink é uma plataforma omnichannel que permite estabelecer comunicação avançada de forma amigável. 
-            Nossas vantagens competitivas incluem tarifas econômicas, garantia de entrega de 100% e abordagem personalizada para cada cliente.
-          </p>
+      {/* Security Section */}
+      <section className="py-20 bg-gray-800/30">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <div className="flex items-center justify-center gap-2 mb-4">
+              <Shield className="w-6 h-6 text-purple-500" />
+              <h2 className="text-3xl lg:text-4xl font-bold">Segurança e privacidade</h2>
+            </div>
+            <p className="text-xl text-gray-400">Modelo privacy-first com proteção de ponta a ponta.</p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-8">
+            {securityFeatures.map((feature, index) => (
+              <div key={index} className="bg-gray-800/50 backdrop-blur-sm rounded-xl border border-gray-700/50 p-6 hover:border-purple-500/50 transition-colors group">
+                <feature.icon className="w-10 h-10 text-purple-500 mb-4 group-hover:text-purple-400 transition-colors" />
+                <h3 className="text-xl font-semibold mb-3">{feature.title}</h3>
+                <p className="text-gray-400 leading-relaxed">{feature.description}</p>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      </section>
 
-      <style jsx>{`
-        @keyframes float {
-          0%, 100% { 
-            transform: translateY(0px) translateX(5px); 
-          }
-          50% { 
-            transform: translateY(-20px) translateX(5px); 
-          }
-        }
-        
-        /* Otimização para GPU */
-        .will-change-transform {
-          will-change: transform;
-        }
-        
-        /* Reduzir motion para dispositivos fracos */
-        @media (prefers-reduced-motion: reduce) {
-          * {
-            animation-duration: 0.01ms !important;
-            animation-iteration-count: 1 !important;
-            transition-duration: 0.01ms !important;
-          }
-        }
-      `}</style>
+      {/* FAQ Section */}
+      <section className="py-20">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <div className="flex items-center justify-center gap-2 mb-4">
+              <MessageCircle className="w-6 h-6 text-purple-500" />
+              <h2 className="text-3xl lg:text-4xl font-bold">FAQ</h2>
+            </div>
+            <p className="text-xl text-gray-400">Perguntas frequentes</p>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-6">
+            {faqItems.map((item, index) => (
+              <div key={index} className="bg-gray-800/50 backdrop-blur-sm rounded-xl border border-gray-700/50 p-6 hover:border-purple-500/50 transition-colors group">
+                <div className="flex items-start justify-between mb-3">
+                  <h3 className="text-lg font-semibold">{item.question}</h3>
+                  <ChevronDown className="w-5 h-5 text-gray-400 group-hover:text-purple-400 transition-colors" />
+                </div>
+                <p className="text-gray-400 leading-relaxed">{item.answer}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="bg-gray-900/50 border-t border-gray-700/50 py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col md:flex-row justify-between items-center">
+            <div className="flex items-center gap-2 mb-4 md:mb-0">
+              <Shield className="w-6 h-6 text-purple-500" />
+              <span className="font-semibold">FDX SMS © 2025</span>
+            </div>
+            
+            <div className="flex items-center gap-6">
+              <a href="#" className="text-gray-400 hover:text-white transition-colors">Entrar</a>
+              <a href="#" className="text-gray-400 hover:text-white transition-colors">Registrar</a>
+              <a href="#" className="text-gray-400 hover:text-white transition-colors">Segurança</a>
+            </div>
+          </div>
+        </div>
+      </footer>
     </div>
   );
-}
+};
+
+export default HeroSection;
