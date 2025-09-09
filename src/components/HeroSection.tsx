@@ -1,8 +1,33 @@
 import React, { useState, useEffect, useCallback, memo } from 'react';
-import { Shield, Users, Globe, MessageCircle, Phone, Zap, ChevronDown, CheckCircle, ArrowRight } from 'lucide-react';
+import { Shield, Users, Globe, MessageCircle, Phone, Zap, ChevronDown, CheckCircle, ArrowRight, LucideIcon } from 'lucide-react';
+
+// Interface para props do AnimatedNumber
+interface AnimatedNumberProps {
+  value: number;
+  suffix?: string;
+}
+
+// Interface para props do FeatureBadge
+interface FeatureBadgeProps {
+  icon: LucideIcon;
+  text: string;
+}
+
+// Interface para props do SecurityFeature
+interface SecurityFeatureProps {
+  icon: LucideIcon;
+  title: string;
+  description: string;
+}
+
+// Interface para props do FAQItem
+interface FAQItemProps {
+  question: string;
+  answer: string;
+}
 
 // Componente AnimatedNumber memoizado para evitar re-renders
-const AnimatedNumber = memo(({ value, suffix = '' }: { value: number; suffix?: string }) => {
+const AnimatedNumber = memo<AnimatedNumberProps>(({ value, suffix = '' }) => {
   const [current, setCurrent] = useState(0);
   
   useEffect(() => {
@@ -41,16 +66,20 @@ const AnimatedNumber = memo(({ value, suffix = '' }: { value: number; suffix?: s
   );
 });
 
+AnimatedNumber.displayName = 'AnimatedNumber';
+
 // Componente FeatureBadge memoizado
-const FeatureBadge = memo(({ icon: Icon, text }: { icon: any; text: string }) => (
+const FeatureBadge = memo<FeatureBadgeProps>(({ icon: Icon, text }) => (
   <div className="flex items-center gap-2 bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-full px-4 py-2">
     <Icon className="w-4 h-4 text-green-400" />
     <span className="text-sm font-medium text-gray-300">{text}</span>
   </div>
 ));
 
+FeatureBadge.displayName = 'FeatureBadge';
+
 // Componente SecurityFeature memoizado
-const SecurityFeature = memo(({ icon: Icon, title, description }: { icon: any; title: string; description: string }) => (
+const SecurityFeature = memo<SecurityFeatureProps>(({ icon: Icon, title, description }) => (
   <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl border border-gray-700/50 p-6 hover:border-purple-500/50 transition-colors group">
     <Icon className="w-10 h-10 text-purple-500 mb-4 group-hover:text-purple-400 transition-colors" />
     <h3 className="text-xl font-semibold mb-3">{title}</h3>
@@ -58,8 +87,10 @@ const SecurityFeature = memo(({ icon: Icon, title, description }: { icon: any; t
   </div>
 ));
 
+SecurityFeature.displayName = 'SecurityFeature';
+
 // Componente FAQItem memoizado
-const FAQItem = memo(({ question, answer }: { question: string; answer: string }) => (
+const FAQItem = memo<FAQItemProps>(({ question, answer }) => (
   <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl border border-gray-700/50 p-6 hover:border-purple-500/50 transition-colors group">
     <div className="flex items-start justify-between mb-3">
       <h3 className="text-lg font-semibold">{question}</h3>
@@ -68,6 +99,8 @@ const FAQItem = memo(({ question, answer }: { question: string; answer: string }
     <p className="text-gray-400 leading-relaxed">{answer}</p>
   </div>
 ));
+
+FAQItem.displayName = 'FAQItem';
 
 const HeroSection = () => {
   const [stats, setStats] = useState({
