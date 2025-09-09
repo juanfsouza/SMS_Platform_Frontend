@@ -1,5 +1,73 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, memo } from 'react';
 import { Shield, Users, Globe, MessageCircle, Phone, Zap, ChevronDown, CheckCircle, ArrowRight } from 'lucide-react';
+
+// Componente AnimatedNumber memoizado para evitar re-renders
+const AnimatedNumber = memo(({ value, suffix = '' }: { value: number; suffix?: string }) => {
+  const [current, setCurrent] = useState(0);
+  
+  useEffect(() => {
+    if (value === 0) return;
+    
+    let animationFrame: number;
+    const startTime = Date.now();
+    const duration = 1500; // Reduzido de 1500ms para 1000ms
+    
+    const animate = () => {
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      
+      // Easing function para animação mais suave
+      const easeOut = 1 - Math.pow(1 - progress, 3);
+      setCurrent(Math.floor(value * easeOut));
+      
+      if (progress < 1) {
+        animationFrame = requestAnimationFrame(animate);
+      }
+    };
+    
+    animationFrame = requestAnimationFrame(animate);
+    
+    return () => {
+      if (animationFrame) {
+        cancelAnimationFrame(animationFrame);
+      }
+    };
+  }, [value]);
+  
+  return (
+    <span className="font-bold text-2xl">
+      {current}{suffix}
+    </span>
+  );
+});
+
+// Componente FeatureBadge memoizado
+const FeatureBadge = memo(({ icon: Icon, text }: { icon: any; text: string }) => (
+  <div className="flex items-center gap-2 bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-full px-4 py-2">
+    <Icon className="w-4 h-4 text-green-400" />
+    <span className="text-sm font-medium text-gray-300">{text}</span>
+  </div>
+));
+
+// Componente SecurityFeature memoizado
+const SecurityFeature = memo(({ icon: Icon, title, description }: { icon: any; title: string; description: string }) => (
+  <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl border border-gray-700/50 p-6 hover:border-purple-500/50 transition-colors group">
+    <Icon className="w-10 h-10 text-purple-500 mb-4 group-hover:text-purple-400 transition-colors" />
+    <h3 className="text-xl font-semibold mb-3">{title}</h3>
+    <p className="text-gray-400 leading-relaxed">{description}</p>
+  </div>
+));
+
+// Componente FAQItem memoizado
+const FAQItem = memo(({ question, answer }: { question: string; answer: string }) => (
+  <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl border border-gray-700/50 p-6 hover:border-purple-500/50 transition-colors group">
+    <div className="flex items-start justify-between mb-3">
+      <h3 className="text-lg font-semibold">{question}</h3>
+      <ChevronDown className="w-5 h-5 text-gray-400 group-hover:text-purple-400 transition-colors" />
+    </div>
+    <p className="text-gray-400 leading-relaxed">{answer}</p>
+  </div>
+));
 
 const HeroSection = () => {
   const [stats, setStats] = useState({
@@ -9,7 +77,14 @@ const HeroSection = () => {
     countries: 0
   });
 
-  // Animação dos números
+  // Função de navegação otimizada
+  const navigateToLogin = useCallback(() => {
+    // Para um SPA com React Router, você usaria: navigate('/login')
+    // Para navegação simples:
+    window.location.href = '/login';
+  }, []);
+
+  // Animação dos números otimizada - inicia mais cedo
   useEffect(() => {
     const timer = setTimeout(() => {
       setStats({
@@ -18,18 +93,20 @@ const HeroSection = () => {
         clients: 3,
         countries: 60
       });
-    }, 500);
+    }, 200); // Reduzido de 500ms para 200ms
+    
     return () => clearTimeout(timer);
   }, []);
 
-  const features = [
+  // Dados estáticos para evitar re-criação em cada render
+  const features = React.useMemo(() => [
     { icon: Shield, text: 'Sem KYC' },
     { icon: Users, text: 'Anônimo' },
     { icon: CheckCircle, text: 'Seguro' },
     { icon: Zap, text: 'Barato' }
-  ];
+  ], []);
 
-  const securityFeatures = [
+  const securityFeatures = React.useMemo(() => [
     {
       title: 'Anonimato',
       description: 'Sem KYC. Coletamos apenas o essencial para autenticação. Sem rastreamento de perfis.',
@@ -45,55 +122,23 @@ const HeroSection = () => {
       description: 'Autogestão no painel, histórico local e expurgo automático de dados sensíveis.',
       icon: Users
     }
-  ];
+  ], []);
 
-  const faqItems = [
+  const faqItems = React.useMemo(() => [
     { question: 'É anônimo?', answer: 'Sim, não requeremos KYC e mantemos apenas dados essenciais.' },
     { question: 'Quais serviços?', answer: 'Oferecemos números virtuais para SMS de verificação de todas as principais plataformas.' },
     { question: 'É barato?', answer: 'Sim, oferecemos preços competitivos com ótimo custo-benefício.' },
     { question: 'Como pago?', answer: 'Aceitamos diversas formas de pagamento incluindo criptomoedas.' }
-  ];
-
-  // Define the props type for AnimatedNumber
-  interface AnimatedNumberProps {
-    value: number;
-    suffix?: string;
-  }
-
-  const AnimatedNumber = ({ value, suffix = '' }: AnimatedNumberProps) => {
-    const [current, setCurrent] = useState(0);
-    
-    useEffect(() => {
-      if (value === 0) return;
-      const increment = value / 50;
-      const timer = setInterval(() => {
-        setCurrent(prev => {
-          const next = prev + increment;
-          if (next >= value) {
-            clearInterval(timer);
-            return value;
-          }
-          return next;
-        });
-      }, 30);
-      return () => clearInterval(timer);
-    }, [value]);
-    
-    return (
-      <span className="font-bold text-2xl">
-        {Math.floor(current)}{suffix}
-      </span>
-    );
-  };
+  ], []);
 
   return (
     <div className="min-h-screen bg-gray-900 text-white">
       {/* Hero Section */}
       <section className="relative overflow-hidden pt-32 pb-20">
-        {/* Background gradients */}
+        {/* Background gradients - usando transform3d para melhor performance */}
         <div className="absolute inset-0">
-          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-600/20 rounded-full blur-3xl"></div>
-          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl"></div>
+          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-600/20 rounded-full blur-3xl transform-gpu"></div>
+          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl transform-gpu"></div>
         </div>
 
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -103,10 +148,7 @@ const HeroSection = () => {
               {/* Feature badges */}
               <div className="flex flex-wrap gap-3">
                 {features.map((feature, index) => (
-                  <div key={index} className="flex items-center gap-2 bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-full px-4 py-2">
-                    <feature.icon className="w-4 h-4 text-green-400" />
-                    <span className="text-sm font-medium text-gray-300">{feature.text}</span>
-                  </div>
+                  <FeatureBadge key={index} icon={feature.icon} text={feature.text} />
                 ))}
               </div>
 
@@ -127,11 +169,17 @@ const HeroSection = () => {
               </p>
 
               <div className="flex flex-col sm:flex-row gap-4">
-                <button className="bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 px-8 py-4 rounded-lg text-lg font-semibold transition-all duration-200 flex items-center gap-2 group">
+                <button 
+                  onClick={navigateToLogin}
+                  className="bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 px-8 py-4 rounded-lg text-lg font-semibold transition-all duration-200 flex items-center gap-2 group"
+                >
                   Começar agora
                   <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                 </button>
-                <button className="border border-gray-600 hover:border-gray-500 px-8 py-4 rounded-lg text-lg font-semibold transition-colors">
+                <button 
+                  onClick={navigateToLogin}
+                  className="border border-gray-600 hover:border-gray-500 px-8 py-4 rounded-lg text-lg font-semibold transition-colors"
+                >
                   Já tenho conta
                 </button>
               </div>
@@ -165,7 +213,10 @@ const HeroSection = () => {
                       <p className="text-sm text-gray-400">Painel em tempo real</p>
                     </div>
                   </div>
-                  <button className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg text-sm transition-colors">
+                  <button 
+                    onClick={navigateToLogin}
+                    className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg text-sm transition-colors"
+                  >
                     Entrar
                   </button>
                 </div>
@@ -237,11 +288,12 @@ const HeroSection = () => {
 
           <div className="grid md:grid-cols-3 gap-8">
             {securityFeatures.map((feature, index) => (
-              <div key={index} className="bg-gray-800/50 backdrop-blur-sm rounded-xl border border-gray-700/50 p-6 hover:border-purple-500/50 transition-colors group">
-                <feature.icon className="w-10 h-10 text-purple-500 mb-4 group-hover:text-purple-400 transition-colors" />
-                <h3 className="text-xl font-semibold mb-3">{feature.title}</h3>
-                <p className="text-gray-400 leading-relaxed">{feature.description}</p>
-              </div>
+              <SecurityFeature 
+                key={index} 
+                icon={feature.icon} 
+                title={feature.title} 
+                description={feature.description} 
+              />
             ))}
           </div>
         </div>
@@ -260,13 +312,7 @@ const HeroSection = () => {
 
           <div className="grid md:grid-cols-2 gap-6">
             {faqItems.map((item, index) => (
-              <div key={index} className="bg-gray-800/50 backdrop-blur-sm rounded-xl border border-gray-700/50 p-6 hover:border-purple-500/50 transition-colors group">
-                <div className="flex items-start justify-between mb-3">
-                  <h3 className="text-lg font-semibold">{item.question}</h3>
-                  <ChevronDown className="w-5 h-5 text-gray-400 group-hover:text-purple-400 transition-colors" />
-                </div>
-                <p className="text-gray-400 leading-relaxed">{item.answer}</p>
-              </div>
+              <FAQItem key={index} question={item.question} answer={item.answer} />
             ))}
           </div>
         </div>
@@ -282,8 +328,12 @@ const HeroSection = () => {
             </div>
             
             <div className="flex items-center gap-6">
-              <a href="#" className="text-gray-400 hover:text-white transition-colors">Entrar</a>
-              <a href="#" className="text-gray-400 hover:text-white transition-colors">Registrar</a>
+              <button onClick={navigateToLogin} className="text-gray-400 hover:text-white transition-colors">
+                Entrar
+              </button>
+              <button onClick={navigateToLogin} className="text-gray-400 hover:text-white transition-colors">
+                Registrar
+              </button>
               <a href="#" className="text-gray-400 hover:text-white transition-colors">Segurança</a>
             </div>
           </div>
