@@ -1,24 +1,33 @@
-"use client";
+'use client';
 
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { useAuthStore } from '@/stores/auth';
-import { motion, AnimatePresence } from 'framer-motion';
-import Navbar from '@/components/Navbar';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
-import { toast } from 'sonner';
-import api from '@/lib/api';
-import { Copy, Wallet, TrendingUp, Star, Globe, Sparkles, CreditCard, Loader2, MessageSquare, Info, Filter, ArrowRight } from 'lucide-react';
-import { ServiceList } from '@/components/ServiceList';
+import { Card, CardContent } from '@/components/ui/card';
+import { Search, Filter, ChevronDown, Plus, Settings, CreditCard, History, Signal, Copy, Wallet, Globe, MessageSquare } from 'lucide-react';
+import { SERVICE_NAME_MAP } from '@/data/services';
 import { COUNTRY_ID_TO_ISO } from '@/data/countryMapping';
-import { POPULAR_SERVICES, SERVICE_NAME_MAP, SIMPLE_ICONS_MAP } from '@/data/services';
-import { debounce } from 'lodash';
 import { getName } from 'country-list';
 import { PurchaseModal } from '@/components/PurchaseModal';
-import DepositForm from '@/components/DepositForm';
-import FloatingButton from '@/components/FloatingButton';
+import Navbar from '@/components/Navbar';
+import api from '@/lib/api';
+import { toast } from 'sonner';
+import { FixedSizeList as List } from 'react-window';
+import Image from 'next/image';
+
+// Dynamically import DepositForm with SSR disabled
+const DepositForm = dynamic(() => import('@/components/DepositForm'), {
+  ssr: false,
+}) as React.ComponentType<{ onSuccess?: () => void }>;
 
 interface PriceData {
   service: string;
@@ -39,166 +48,155 @@ interface Activation {
   code: string | null;
 }
 
-interface ApiError extends Error {
-  response?: {
-    status: number;
-    data?: {
-      message?: string;
-    };
-  };
-}
-
-const fadeInUp = {
-  hidden: { opacity: 0, y: 30 },
-  visible: { opacity: 1, y: 0 }
-};
-
-const staggerContainer = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.1
-    }
-  }
-};
-
-const scaleOnHover = {
-  whileHover: { scale: 1.02, transition: { duration: 0.2 } },
-  whileTap: { scale: 0.98 }
-};
-
 export default function DashboardPage() {
   const { user, setUser } = useAuthStore();
   const router = useRouter();
-  const [isLoadingLink, setIsLoadingLink] = useState(false);
-  const [popularPrices, setPopularPrices] = useState<PriceData[]>([]);
-  const [allPrices, setAllPrices] = useState<PriceData[]>([]);
-  const [allServices, setAllServices] = useState<string[]>([]);
-  const [isLoadingPopularPrices, setIsLoadingPopularPrices] = useState(false);
-  const [isLoadingAllPrices, setIsLoadingAllPrices] = useState(false);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
+  const [prices, setPrices] = useState<PriceData[]>([]);
+  const [affiliateLink, setAffiliateLink] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedService, setSelectedService] = useState<string | null>(null);
+  const [selectedCountryId, setSelectedCountryId] = useState<string | null>(null);
+  const [selectedPriceBrl, setSelectedPriceBrl] = useState<number | null>(null);
+  const [countrySearchTerm, setCountrySearchTerm] = useState('');
+  const [showDepositModal, setShowDepositModal] = useState(false);
   const [activations, setActivations] = useState<Activation[]>([]);
   const [selectedActivation, setSelectedActivation] = useState<Activation | null>(null);
   const [hasActivePolling, setHasActivePolling] = useState(false);
-  const limit = 5000;
-  const MAX_ACTIVATION_AGE = 20 * 60 * 1000;
+  const [showHistory, setShowHistory] = useState(false);
+  const [pricesLoaded, setPricesLoaded] = useState(false);
+  const [servicesLimit, setServicesLimit] = useState(40); // Limitar serviços iniciais
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const MAX_ACTIVATION_AGE = 20 * 60 * 1000; // 20 minutes
 
   const countryMap = useMemo(() => {
-    const map: { [key: string]: string } = {};
+    const map: Record<string, string> = {};
     Object.entries(COUNTRY_ID_TO_ISO).forEach(([id, iso]) => {
       map[id] = getName(iso) || `Unknown (${id})`;
     });
     return map;
   }, []);
 
-  const totalServices = useMemo(() => allServices.length + POPULAR_SERVICES.length, [allServices]);
-  const totalCountries = useMemo(() => new Set([...popularPrices, ...allPrices].map(p => p.country)).size, [popularPrices, allPrices]);
+  const allServices = useMemo(() => {
+    if (!prices.length) return [];
+    const serviceSet = new Set(prices.map(p => p.service));
+    const services = Array.from(serviceSet);
+    
+    // Ordenar serviços por quantidade de países disponíveis (mais países primeiro)
+    return services.sort((a, b) => {
+      const countriesA = new Set(prices.filter(p => p.service === a).map(p => p.country)).size;
+      const countriesB = new Set(prices.filter(p => p.service === b).map(p => p.country)).size;
+      return countriesB - countriesA; // Ordem decrescente (mais países primeiro)
+    });
+  }, [prices]);
+
+  const services = useMemo(() => {
+    // Retornar apenas os primeiros serviços para melhor performance
+    return allServices.slice(0, servicesLimit);
+  }, [allServices, servicesLimit]);
+
+  // Debounce search term
+  useEffect(() => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    
+    searchTimeoutRef.current = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 300);
+
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [searchTerm]);
+
+  const filteredServices = useMemo(() => {
+    // Se há termo de busca, filtrar todos os serviços, senão usar apenas os limitados
+    const servicesToFilter = debouncedSearchTerm ? allServices : services;
+    return servicesToFilter.filter((service) =>
+      (SERVICE_NAME_MAP[service] || service.toUpperCase())
+        .toLowerCase()
+        .includes(debouncedSearchTerm.toLowerCase())
+    );
+  }, [allServices, services, debouncedSearchTerm]);
+
+  const servicePricesMap = useMemo(() => {
+    const map: Record<string, Array<PriceData>> = {};
+    const servicesToMap = debouncedSearchTerm ? allServices : services;
+    servicesToMap.forEach((service) => {
+      map[service] = prices.filter((item) => item.service === service);
+    });
+    return map;
+  }, [allServices, services, prices, debouncedSearchTerm]);
+
+  const filteredServicePrices = useMemo(() => {
+    return filteredServices.reduce((acc, service) => {
+      const filtered = servicePricesMap[service]?.filter((item) =>
+        countryMap[item.country]?.toLowerCase().includes(countrySearchTerm.toLowerCase()) ||
+        item.country.toLowerCase().includes(countrySearchTerm.toLowerCase())
+      ) || [];
+      if (filtered.length > 0) acc[service] = filtered;
+      return acc;
+    }, {} as Record<string, PriceData[]>);
+  }, [filteredServices, servicePricesMap, countrySearchTerm, countryMap]);
+
 
   const handleUnauthorized = useCallback(() => {
     setUser(null);
     router.push('/login');
   }, [setUser, router]);
 
-  const fetchAllServices = useCallback(async () => {
+  const fetchPrices = useCallback(async () => {
     try {
-      const response = await api.get<PriceData[]>('/credits/prices/filter', { params: { limit: 1000 } });
-      const services = Array.from(
-        new Set(
-          response.data
-            .map((item) => item.service)
-            .filter((service) => service && !POPULAR_SERVICES.includes(service) && SIMPLE_ICONS_MAP[service])
-        )
-      ).sort() as string[];
-      setAllServices(services);
-    } catch (error: unknown) {
-      if (error instanceof Error && 'response' in error) {
-        const apiError = error as ApiError;
-        if (apiError.response?.status === 401) {
-          handleUnauthorized();
-        } else {
-          toast.error('Falha ao carregar lista de serviços');
-        }
-      } else {
-        toast.error('Falha ao carregar lista de serviços');
-      }
-    }
-  }, [handleUnauthorized]);
-
-  const fetchAllPrices = useCallback(
-    debounce(async () => {
-      try {
-        setIsLoadingAllPrices(true);
-        const response = await api.get<PriceData[]>('/credits/prices/filter', {
-          params: { limit, offset: (page - 1) * limit },
-        });
-        const newPrices = response.data;
-        setAllPrices((prev) => [...prev, ...newPrices]);
-        setHasMore(newPrices.length === limit);
-      } catch (error: unknown) {
-        if (error instanceof Error && 'response' in error) {
-          const apiError = error as ApiError;
-          if (apiError.response?.status === 401) {
-            handleUnauthorized();
-          } else {
-            const message = apiError.response?.status === 429
-              ? 'Muitas requisições. Tente novamente em alguns segundos.'
-              : 'Falha ao carregar preços dos serviços';
-            toast.error(message);
-          }
-        } else {
-          toast.error('Falha ao carregar preços dos serviços');
-        }
-      } finally {
-        setIsLoadingAllPrices(false);
-      }
-    }, 300),
-    [page, limit, handleUnauthorized]
-  );
-
-  const fetchPopularPrices = useCallback(async () => {
-    try {
-      setIsLoadingPopularPrices(true);
-      const response = await api.get<PriceData[]>('/credits/prices/filter', {
-        params: { service: POPULAR_SERVICES.join(','), limit: 204 * POPULAR_SERVICES.length },
+      setIsLoading(true);
+      // Carregar apenas os primeiros 1000 registros para melhor performance
+      const response = await api.get<PriceData[]>('/credits/prices/filter', { 
+        params: { 
+          limit: 5000,
+          sort: 'priceBrl:asc' // Ordenar por preço para mostrar os mais baratos primeiro
+        } 
       });
-      const filteredPrices = response.data.filter((item: PriceData) =>
-        POPULAR_SERVICES.includes(item.service)
-      );
-      setPopularPrices(filteredPrices);
+      setPrices(response.data);
+      setPricesLoaded(true);
     } catch (error: unknown) {
-      if (error instanceof Error && 'response' in error) {
-        const apiError = error as ApiError;
+      toast.error('Falha ao carregar preços');
+      if (error && typeof error === 'object' && 'response' in error) {
+        const apiError = error as { response?: { status?: number } };
         if (apiError.response?.status === 401) {
           handleUnauthorized();
-        } else {
-          toast.error('Falha ao carregar preços dos serviços populares');
-          try {
-            const fallbackResponse = await api.get<PriceData[]>('/credits/prices/filter', {
-              params: { limit: 204 * POPULAR_SERVICES.length },
-            });
-            const fallbackPrices = fallbackResponse.data.filter((item: PriceData) =>
-              POPULAR_SERVICES.includes(item.service)
-            );
-            setPopularPrices(fallbackPrices);
-          } catch {
-            toast.error('Falha ao carregar preços de fallback');
-          }
         }
-      } else {
-        toast.error('Falha ao carregar preços dos serviços populares');
       }
     } finally {
-      setIsLoadingPopularPrices(false);
+      setIsLoading(false);
     }
   }, [handleUnauthorized]);
+
+  const fetchAffiliateLink = useCallback(async () => {
+    if (!user) return;
+    try {
+      const response = await api.get('/affiliate/link', {
+        headers: { Authorization: `Bearer ${user?.token}` },
+      });
+      setAffiliateLink(response.data.affiliateLink);
+    } catch (error: unknown) {
+      if (error && typeof error === 'object' && 'response' in error) {
+        const apiError = error as { response?: { status?: number } };
+        if (apiError.response?.status === 401) {
+          handleUnauthorized();
+        }
+      }
+    }
+  }, [user, handleUnauthorized]);
 
   const fetchRecentActivations = useCallback(async () => {
     if (!user) return;
     try {
       const response = await api.get<Activation[]>('/sms/activations/recent', {
-        headers: { Authorization: `Bearer ${user.token}` },
+        headers: { Authorization: `Bearer ${user?.token}` },
       });
       const fetchedActivations = response.data;
       setActivations(fetchedActivations);
@@ -207,15 +205,12 @@ export default function DashboardPage() {
       );
       setHasActivePolling(hasActive);
     } catch (error: unknown) {
-      if (error instanceof Error && 'response' in error) {
-        const apiError = error as ApiError;
+      toast.error('Falha ao carregar ativações recentes');
+      if (error && typeof error === 'object' && 'response' in error) {
+        const apiError = error as { response?: { status?: number } };
         if (apiError.response?.status === 401) {
           handleUnauthorized();
-        } else {
-          toast.error('Falha ao carregar ativações recentes');
         }
-      } else {
-        toast.error('Falha ao carregar ativações recentes');
       }
     }
   }, [user, handleUnauthorized, MAX_ACTIVATION_AGE]);
@@ -234,7 +229,7 @@ export default function DashboardPage() {
           { headers: { Authorization: `Bearer ${user.token}` } }
         );
         const { activationId, phoneNumber, creditsSpent, balance } = response.data;
-        setUser({ ...user, balance });
+        setUser(user ? { ...user, balance } : null);
         const newActivation: Activation = {
           activationId,
           phoneNumber,
@@ -249,17 +244,15 @@ export default function DashboardPage() {
         setActivations((prev) => [...prev, newActivation]);
         setSelectedActivation(newActivation);
         setHasActivePolling(true);
+        setModalOpen(false);
         return { activationId, phoneNumber, creditsSpent };
       } catch (error: unknown) {
-        if (error instanceof Error && 'response' in error) {
-          const apiError = error as ApiError;
+        toast.error('Falha ao realizar a compra');
+        if (error && typeof error === 'object' && 'response' in error) {
+          const apiError = error as { response?: { status?: number } };
           if (apiError.response?.status === 401) {
             handleUnauthorized();
-          } else {
-            toast.error('Falha ao realizar a compra');
           }
-        } else {
-          toast.error('Falha ao realizar a compra');
         }
         return null;
       }
@@ -267,8 +260,13 @@ export default function DashboardPage() {
     [user, setUser, handleUnauthorized]
   );
 
-  const openActivationModal = (activation: Activation) => {
-    setSelectedActivation(activation);
+  const openPurchaseModal = (service: string, countryId: string, priceBrl: number) => {
+    if (!user) return;
+    setSelectedService(service);
+    setSelectedCountryId(countryId);
+    setSelectedPriceBrl(priceBrl);
+    setModalOpen(true);
+    setCountrySearchTerm('');
   };
 
   useEffect(() => {
@@ -276,55 +274,24 @@ export default function DashboardPage() {
       router.push('/login');
       return;
     }
-
-    const fetchUserData = async () => {
+    
+    // Carregar dados essenciais primeiro
+    const loadEssentialData = async () => {
       try {
-        setIsLoadingLink(true);
-        const linkResponse = await api.get('/affiliate/link', {
-          headers: { Authorization: `Bearer ${user.token}` },
-        });
-        const balanceResponse = await api.get('/users/me/balance', {
-          headers: { Authorization: `Bearer ${user.token}` },
-        });
-
-        const newBalance = balanceResponse.data.balance;
-        const newAffiliateBalance = balanceResponse.data.affiliateBalance;
-        const newAffiliateLink = linkResponse.data.affiliateLink;
-
-        if (
-          newBalance !== user.balance ||
-          newAffiliateBalance !== user.affiliateBalance ||
-          newAffiliateLink !== user.affiliateLink
-        ) {
-          setUser({
-            ...user,
-            balance: newBalance,
-            affiliateBalance: newAffiliateBalance,
-            affiliateLink: newAffiliateLink,
-          });
-        }
-      } catch (error: unknown) {
-        if (error instanceof Error && 'response' in error) {
-          const apiError = error as ApiError;
-          if (apiError.response?.status === 401) {
-            handleUnauthorized();
-          } else {
-            toast.error('Falha ao carregar dados do usuário');
-          }
-        } else {
-          toast.error('Falha ao carregar dados do usuário');
-        }
-      } finally {
-        setIsLoadingLink(false);
+        await Promise.all([
+          fetchPrices(),
+          fetchAffiliateLink()
+        ]);
+      } catch (error) {
+        console.error('Error loading essential data:', error);
       }
     };
 
-    fetchUserData();
-    fetchPopularPrices();
-    fetchAllServices();
-    fetchAllPrices();
+    loadEssentialData();
+    
+    // Carregar ativações em background
     fetchRecentActivations();
-  }, [user, router, setUser, fetchAllPrices, fetchAllServices, fetchPopularPrices, fetchRecentActivations, handleUnauthorized]);
+  }, [user, router, fetchPrices, fetchAffiliateLink, fetchRecentActivations]);
 
   useEffect(() => {
     if (!user || !hasActivePolling) return;
@@ -332,7 +299,7 @@ export default function DashboardPage() {
     const interval = setInterval(async () => {
       try {
         const response = await api.get<Activation[]>('/sms/activations/recent', {
-          headers: { Authorization: `Bearer ${user.token}` },
+          headers: { Authorization: `Bearer ${user?.token}` },
         });
         const fetchedActivations = response.data;
         setActivations(fetchedActivations);
@@ -343,8 +310,8 @@ export default function DashboardPage() {
           setHasActivePolling(false);
         }
       } catch (error: unknown) {
-        if (error instanceof Error && 'response' in error) {
-          const apiError = error as ApiError;
+        if (error && typeof error === 'object' && 'response' in error) {
+          const apiError = error as { response?: { status?: number } };
           if (apiError.response?.status === 401) {
             handleUnauthorized();
           }
@@ -355,525 +322,571 @@ export default function DashboardPage() {
     return () => clearInterval(interval);
   }, [user, hasActivePolling, handleUnauthorized, MAX_ACTIVATION_AGE]);
 
-  const loadMore = () => {
-    setPage((prev) => prev + 1);
+  const getServiceImageUrl = (service: string) => {
+    return `https://smsactivate.s3.eu-central-1.amazonaws.com/assets/ico/${service}0.webp`;
   };
 
-  const copyToClipboard = () => {
-    if (user?.affiliateLink) {
-      navigator.clipboard.writeText(user.affiliateLink);
-      toast.success('Link de afiliado copiado para a área de transferência');
-    } else {
-      toast.error('Nenhum link de afiliado disponível');
-    }
-  };
+  const Row = React.memo(({
+    index,
+    style,
+    data,
+  }: {
+    index: number;
+    style: React.CSSProperties;
+    data: { service: string; prices: PriceData[] };
+  }) => {
+    const { prices } = data;
+    const item = prices[index];
+    const countryName = countryMap[item.country] || `(${item.country})`;
+    const countryIso2 = COUNTRY_ID_TO_ISO[item.country] || 'UN';
+
+    return (
+      <div style={style}>
+        <DropdownMenuItem className="flex justify-between items-center p-3 my-1 rounded-lg bg-slate-700/20 hover:bg-slate-600/30 border border-slate-600/20 hover:border-slate-500/40 transition-all duration-200">
+          <span className="flex items-center space-x-3 flex-1 min-w-0">
+            <div className="relative flex-shrink-0">
+              {countryIso2 !== 'UN' ? (
+                <Image
+                  src={`https://flagcdn.com/24x18/${countryIso2.toLowerCase()}.png`}
+                  alt={countryName}
+                  width={24}
+                  height={18}
+                  className="rounded-sm shadow-sm"
+                />
+              ) : (
+                <div className="w-6 h-4 bg-gradient-to-br from-slate-600 to-slate-700 rounded-sm" />
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <span className="text-white font-medium text-sm truncate block">{countryName}</span>
+              <div className="flex items-center gap-2 text-xs text-slate-400 mt-1">
+                <span className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-400"></span>
+                  R$ {item.priceBrl.toFixed(2)}
+                </span>
+              </div>
+            </div>
+          </span>
+          <Button
+            size="sm"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              openPurchaseModal(item.service, item.country, item.priceBrl);
+            }}
+            disabled={!user?.balance || user.balance < item.priceBrl}
+            className={`rounded-lg text-xs px-3 py-1.5 ${
+              !user?.balance || user.balance < item.priceBrl
+                ? 'bg-slate-600/50 text-slate-400 cursor-not-allowed'
+                : 'bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white shadow-sm'
+            }`}
+          >
+            {!user?.balance || user.balance < item.priceBrl ? 'Sem saldo' : 'Comprar'}
+          </Button>
+        </DropdownMenuItem>
+      </div>
+    );
+  });
+
+  Row.displayName = 'Row';
+
+  if (isLoading && !pricesLoaded) {
+    return (
+      <div className="min-h-screen bg-[#0B1426] flex items-center justify-center text-white">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p>Carregando serviços...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!user) {
     return null;
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800">
+    <div className="min-h-screen bg-[#0B1426] text-white">
       <Navbar />
-      <FloatingButton />
-      
-      <motion.div 
-        initial="hidden"
-        animate="visible"
-        variants={staggerContainer}
-        className="pt-24 pb-8"
-      >
-        <div className="container mx-auto px-6">
-          {/* Hero Section */}
-          <motion.div variants={fadeInUp} className="text-center mb-12">
-            <motion.div 
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-              className="inline-flex items-center gap-3 px-6 py-3 rounded-2xl bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 backdrop-blur-sm mb-6"
-            >
-              <Sparkles className="w-5 h-5 text-blue-400" />
-              <span className="text-sm font-semibold text-blue-300">Dashboard Premium</span>
-            </motion.div>
-            
-            <motion.h1 
-              variants={fadeInUp}
-              className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-white via-blue-100 to-blue-200 bg-clip-text text-transparent mb-4"
-            >
-              Bem-vindo de volta!
-            </motion.h1>
-            
-            <motion.p 
-              variants={fadeInUp}
-              className="text-xl text-slate-400 max-w-2xl mx-auto"
-            >
-              Gerencie seu saldo e explore nossos serviços premium com facilidade
-            </motion.p>
-          </motion.div>
 
-          {/* Balance Card */}
-          <motion.div variants={fadeInUp}>
-            <Card className="mb-8 border-0 bg-gradient-to-r from-slate-800/50 to-slate-700/50 backdrop-blur-lg shadow-2xl overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-purple-500/5" />
-              <CardContent className="relative p-8">
-                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-                  <div className="flex items-center gap-4">
-                    <motion.div 
-                      whileHover={{ rotate: 5 }}
-                      className="p-4 rounded-2xl bg-gradient-to-br from-blue-500/20 to-blue-600/20 border border-blue-500/30"
-                    >
-                      <Wallet className="w-8 h-8 text-blue-400" />
-                    </motion.div>
+      <div className="pt-16 flex">
+        {/* Sidebar - Hidden on mobile, shown on desktop */}
+        <div className="hidden md:block w-64 bg-[#0B1426] p-6 border-r border-slate-700/30 min-h-screen">
+          <div className="space-y-2">
+            <button
+              onClick={() => setShowHistory(false)}
+              className={`flex items-center space-x-3 px-4 py-3 cursor-pointer rounded-lg w-full text-left transition-all duration-200 ${
+                !showHistory
+                  ? 'text-blue-400 bg-blue-500/10 border-l-4 border-blue-500'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/30'
+              }`}
+            >
+              <Settings className="w-5 h-5" />
+              <span className="text-sm font-medium">Serviços</span>
+            </button>
+            <button
+              onClick={() => setShowDepositModal(true)}
+              className="flex items-center space-x-3 text-slate-400 hover:text-white px-4 py-3 cursor-pointer rounded-lg hover:bg-slate-800/30 w-full text-left transition-all duration-200"
+            >
+              <CreditCard className="w-5 h-5" />
+              <span className="text-sm">Adicionar Saldo</span>
+            </button>
+            <button
+              onClick={() => setShowHistory(true)}
+              className={`flex items-center space-x-3 px-4 py-3 cursor-pointer rounded-lg w-full text-left transition-all duration-200 ${
+                showHistory
+                  ? 'text-blue-400 bg-blue-500/10 border-l-4 border-blue-500'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/30'
+              }`}
+            >
+              <History className="w-5 h-5" />
+              <span className="text-sm">Histórico</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Main Content */}
+        <div className="flex-1 p-4 md:p-6">
+          {/* Header Cards Row */}
+          <div className="max-w-5xl mx-auto">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 mb-6">
+              {/* Saldo Card */}
+              <div className="lg:col-span-6 bg-gradient-to-br from-gray-900/50 to-gray-800/50 rounded-xl p-4 border border-gray-700/30 shadow-lg">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center">
+                      <Wallet className="w-5 h-5 text-blue-400" />
+                    </div>
                     <div>
-                      <p className="text-sm text-slate-400 mb-1">Saldo Disponível</p>
-                      <p className="text-4xl font-bold text-white">
-                        R$ {user.balance.toFixed(2)}
-                      </p>
+                      <div className="text-slate-300 text-xs font-medium">Saldo Disponível</div>
+                      <div className="text-2xl font-bold text-white">R$ {user.balance?.toFixed(2) || '0.00'}</div>
                     </div>
                   </div>
-                  
-                  <motion.div {...scaleOnHover}>
-                  </motion.div>
+                  <Button
+                    onClick={() => setShowDepositModal(true)}
+                    className="bg-gradient-to-r from-blue-900 to-blue-900 hover:from-blue-900 hover:to-blue-800 text-white px-4 py-2 rounded-lg font-medium shadow-md transition-all duration-200 text-sm"
+                  >
+                    <Plus className="w-4 h-4 mr-1" />
+                    Adicionar
+                  </Button>
+                </div>
+              </div>
+
+              {/* Stats Cards */}
+              <div className="lg:col-span-6 grid grid-cols-3 gap-3">
+                <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 rounded-xl p-3 border border-gray-700/30 shadow-md">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center">
+                      <Settings className="w-4 h-4 text-blue-400" />
+                    </div>
+                    <div>
+                      <div className="text-lg font-bold text-white">+500</div>
+                      <div className="text-slate-400 text-xs">Serviços</div>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-6 mt-8 pt-6 border-t border-slate-700/50">
-                  <motion.div 
-                    whileHover={{ y: -2 }}
-                    className="text-center"
-                  >
-                    <div className="flex items-center justify-center gap-2 mb-2">
-                      <div className="w-2 h-2 rounded-full bg-blue-400" />
-                      <span className="text-2xl font-bold text-white">{totalServices}</span>
+                <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 rounded-xl p-3 border border-gray-700/30 shadow-md">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center">
+                      <Globe className="w-4 h-4 text-blue-400" />
                     </div>
-                    <p className="text-sm text-slate-400">Serviços</p>
-                  </motion.div>
-                  
-                  <motion.div 
-                    whileHover={{ y: -2 }}
-                    className="text-center"
-                  >
-                    <div className="flex items-center justify-center gap-2 mb-2">
-                      <div className="w-2 h-2 rounded-full bg-green-400" />
-                      <span className="text-2xl font-bold text-white">{totalCountries}</span>
+                    <div>
+                      <div className="text-lg font-bold text-white">1500</div>
+                      <div className="text-slate-400 text-xs">Países</div>
                     </div>
-                    <p className="text-sm text-slate-400">Países</p>
-                  </motion.div>
-                  
-                  <motion.div 
-                    whileHover={{ y: -2 }}
-                    className="text-center"
-                  >
-                    <div className="flex items-center justify-center gap-2 mb-2">
-                      <div className="w-2 h-2 rounded-full bg-purple-400" />
-                      <span className="text-2xl font-bold text-white">320.4M</span>
-                    </div>
-                    <p className="text-sm text-slate-400">Números</p>
-                  </motion.div>
+                  </div>
                 </div>
-              </CardContent>
-            </Card>
-          </motion.div>
 
-          {/* Search Bar */}
-          <motion.div variants={fadeInUp} className="mb-8">
-            <div className="relative max-w-2xl mx-auto">            
-              <Button 
-                size="sm" 
-                className="absolute right-2 top-2 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white rounded-xl"
-              >
-                <Filter className="w-4 h-4" />
-              </Button>
+                <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 rounded-xl p-3 border border-gray-700/30 shadow-md">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-8 h-8 bg-green-500/20 rounded-lg flex items-center justify-center">
+                      <Signal className="w-4 h-4 text-green-400" />
+                    </div>
+                    <div>
+                      <div className="text-lg font-bold text-white">10k</div>
+                      <div className="text-slate-400 text-xs">Números</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
-          </motion.div>
+          </div>
 
-          {/* Affiliate Link Card */}
-          <motion.div variants={fadeInUp}>
-            <Card className="mb-12 border-0 bg-gradient-to-r from-slate-800/50 to-slate-700/50 backdrop-blur-lg shadow-xl overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/5 to-teal-500/5" />
-              <CardHeader className="relative">
-                <CardTitle className="flex items-center gap-3 text-xl text-white">
-                  <motion.div 
-                    whileHover={{ rotate: 12 }}
-                    className="p-3 rounded-xl bg-gradient-to-br from-emerald-500/20 to-emerald-600/20 border border-emerald-500/30"
-                  >
-                    <Copy className="w-6 h-6 text-emerald-400" />
-                  </motion.div>
-                  Seu Link de Afiliado
-                  <div className="px-3 py-1 rounded-full bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 text-xs font-semibold border border-emerald-500/30">
-                    Premium
+          {/* Affiliate Card - Hidden for cleaner look like in image */}
+          {false && (
+            <div className="mb-6">
+              <Card className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 border border-gray-700/30 shadow-lg">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-emerald-500/20 rounded-xl flex items-center justify-center">
+                        <Copy className="w-6 h-6 text-emerald-400" />
+                      </div>
+                      <div>
+                        <div className="text-slate-300 text-sm font-medium">Link de Afiliado</div>
+                        <div className="text-xl font-bold text-white">Compartilhe e Ganhe</div>
+                      </div>
+                    </div>
                   </div>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="relative">
-                {isLoadingLink ? (
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-slate-700/50 animate-pulse" />
-                    <div className="h-6 bg-slate-700/50 rounded-lg animate-pulse flex-1" />
-                  </div>
-                ) : user.affiliateLink ? (
-                  <div className="flex flex-col lg:flex-row items-start lg:items-center gap-4">
+                  <div className="flex gap-4">
                     <Input
-                      value={user.affiliateLink}
+                      value={affiliateLink}
                       readOnly
-                      className="flex-1 bg-slate-700/30 border-slate-600/50 text-slate-200 font-mono text-sm h-12 rounded-xl"
+                      placeholder="Carregando link..."
+                      className="flex-1 bg-gray-800/50 border border-gray-700/50 text-white placeholder:text-slate-400 focus:border-blue-500/50 rounded-xl px-4 py-3"
                     />
-                    <motion.div {...scaleOnHover}>
-                      <Button
-                        onClick={copyToClipboard}
-                        className="bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 text-white shadow-lg hover:shadow-xl px-6 h-12 rounded-xl"
-                      >
-                        <Copy className="h-4 w-4 mr-2" />
-                        Copiar Link
-                      </Button>
-                    </motion.div>
+                    <Button
+                      onClick={() => {
+                        if (affiliateLink) {
+                          navigator.clipboard.writeText(affiliateLink);
+                          toast.success('Link de afiliado copiado!');
+                        } else {
+                          toast.error('Nenhum link disponível');
+                        }
+                      }}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl shadow-md transition-all duration-200"
+                    >
+                      Copiar
+                    </Button>
                   </div>
-                ) : (
-                  <p className="text-slate-400">Nenhum link de afiliado disponível</p>
-                )}
-              </CardContent>
-            </Card>
-          </motion.div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
 
-          {/* Deposit Card */}
-          <motion.div variants={fadeInUp}>
-            <Card className="mb-12 border-0 bg-gradient-to-r from-slate-800/50 to-slate-700/50 backdrop-blur-lg shadow-xl overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-r from-green-500/5 to-emerald-500/5" />
-              <CardHeader className="relative">
-                <CardTitle className="flex items-center gap-3 text-xl text-white">
-                  <motion.div 
-                    whileHover={{ scale: 1.1 }}
-                    className="p-3 rounded-xl bg-gradient-to-br from-green-500/20 to-green-600/20 border border-green-500/30"
-                  >
-                    <CreditCard className="w-6 h-6 text-green-400" />
-                  </motion.div>
-                  Faça sua Recarga
-                  <div className="px-3 py-1 rounded-full bg-gradient-to-r from-green-500/20 to-emerald-500/20 text-green-300 text-xs font-semibold border border-green-500/30">
-                    PIX Instantâneo
+          {/* Conditional Content: Services or History */}
+          {showHistory ? (
+            <Card className="mb-6 bg-gradient-to-br from-gray-900/50 to-gray-800/50 border border-gray-700/30 shadow-lg">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-blue-500/20 rounded-xl flex items-center justify-center">
+                      <MessageSquare className="w-6 h-6 text-blue-400" />
+                    </div>
+                    <div>
+                      <div className="text-xl font-bold text-white">Ativações Recentes</div>
+                      <div className="text-slate-400 text-sm">Suas ativações de SMS ativas (expiram após 20 minutos)</div>
+                    </div>
                   </div>
-                </CardTitle>
-                <p className="text-slate-400 mt-2">
-                  Adicione reais à sua conta via PIX de forma instantânea
-                </p>
-              </CardHeader>
-              <CardContent className="relative">
-                <motion.div 
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="flex items-center gap-3 p-4 mb-6 rounded-xl bg-blue-500/10 border border-blue-500/20"
-                >
-                  <Info className="w-5 h-5 text-blue-400" />
-                  <p className="text-sm font-medium text-blue-300">
-                    R$1.00 = 1.00 Real • Taxa: 0% • Processamento instantâneo
-                  </p>
-                </motion.div>
-                <DepositForm />
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          {/* Recent Activations */}
-          <motion.div variants={fadeInUp}>
-            <Card className="mb-12 border-0 bg-gradient-to-r from-slate-800/50 to-slate-700/50 backdrop-blur-lg shadow-xl overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-r from-purple-500/5 to-pink-500/5" />
-              <CardHeader className="relative">
-                <CardTitle className="flex items-center gap-3 text-xl text-white">
-                  <motion.div 
-                    whileHover={{ rotate: -5 }}
-                    className="p-3 rounded-xl bg-gradient-to-br from-purple-500/20 to-purple-600/20 border border-purple-500/30"
+                  <Button
+                    onClick={() => setShowHistory(false)}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl"
                   >
-                    <MessageSquare className="w-6 h-6 text-purple-400" />
-                  </motion.div>
-                  Ativações Recentes
-                  <div className="px-3 py-1 rounded-full bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-purple-300 text-xs font-semibold border border-purple-500/30">
-                    Últimas 24h
-                  </div>
-                </CardTitle>
-                <p className="text-slate-400 mt-2">
-                  Suas ativações de SMS ativas (expiram após 20 minutos)
-                </p>
-              </CardHeader>
-              <CardContent className="relative">
+                    Voltar
+                  </Button>
+                </div>
                 {activations.length > 0 ? (
-                  <motion.div 
-                    initial="hidden"
-                    animate="visible"
-                    variants={staggerContainer}
-                    className="space-y-4"
-                  >
+                  <div className="space-y-4">
                     {activations.map((activation) => (
-                      <motion.div
+                      <div
                         key={activation.activationId}
-                        variants={fadeInUp}
-                        whileHover={{ x: 4 }}
-                        className="flex items-center justify-between p-4 bg-slate-700/30 rounded-xl border border-slate-600/30 hover:bg-slate-700/50 transition-all duration-200"
+                        className="flex items-center justify-between p-4 bg-gray-800/30 rounded-xl border border-gray-700/30 hover:bg-gray-700/40 transition-all duration-200"
                       >
-                        <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-blue-500/30 flex items-center justify-center">
-                            <MessageSquare className="w-6 h-6 text-blue-400" />
+                        <div className="flex items-center space-x-4">
+                          <div className="w-12 h-12 rounded-xl flex items-center justify-center">
+                            <Image
+                              src={getServiceImageUrl(activation.service)}
+                              alt={SERVICE_NAME_MAP[activation.service] || activation.service.toUpperCase()}
+                              width={48}
+                              height={48}
+                              className="object-contain"
+                              onError={(e) => {
+                                e.currentTarget.src = 'https://smsactivate.s3.eu-central-1.amazonaws.com/assets/ico/other0.webp';
+                              }}
+                            />
                           </div>
                           <div>
-                            <p className="text-white font-medium">
-                              {SERVICE_NAME_MAP[activation.service] || activation.service.toUpperCase()} - {countryMap[activation.countryId] || `Unknown (${activation.countryId})`}
+                            <p className="text-sm font-medium text-white">
+                              {SERVICE_NAME_MAP[activation.service] || activation.service.toUpperCase()} -{' '}
+                              {countryMap[activation.countryId] || `Unknown (${activation.countryId})`}
                             </p>
-                            <div className="flex items-center gap-4 text-sm text-slate-400">
-                              <span>Número: {activation.phoneNumber}</span>
-                              <span>•</span>
-                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                activation.code 
-                                  ? 'bg-green-500/20 text-green-300 border border-green-500/30' 
-                                  : activation.status === '6'
-                                  ? 'bg-gray-500/20 text-gray-300 border border-gray-500/30'
-                                  : 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30'
-                              }`}>
-                                {activation.code
-                                  ? 'Código Recebido'
-                                  : activation.status === '6'
-                                  ? 'Finalizado'
-                                  : 'Aguardando'}
-                              </span>
-                            </div>
+                            <p className="text-xs text-slate-400">
+                              Número: {activation.phoneNumber} | Status:{' '}
+                              {activation.code
+                                ? 'Código Recebido'
+                                : activation.status === '6'
+                                ? 'Finalizado'
+                                : 'Aguardando'}
+                            </p>
                           </div>
                         </div>
-                        
-                        <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                          <Button
-                            size="sm"
-                            onClick={() => openActivationModal(activation)}
-                            disabled={activation.status === '6' || (activation.createdAt + MAX_ACTIVATION_AGE < Date.now())}
-                            className="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white rounded-lg"
-                          >
-                            <ArrowRight className="w-4 h-4 mr-1" />
-                            Ver Detalhes
-                          </Button>
-                        </motion.div>
-                      </motion.div>
+                        <Button
+                          size="sm"
+                          onClick={() => setSelectedActivation(activation)}
+                          disabled={activation.status === '6' || (activation.createdAt + MAX_ACTIVATION_AGE < Date.now())}
+                          className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-xl"
+                        >
+                          Ver Detalhes
+                        </Button>
+                      </div>
                     ))}
-                  </motion.div>
+                  </div>
                 ) : (
-                  <motion.div 
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="text-center py-12"
-                  >
-                    <motion.div 
-                      animate={{ y: [0, -5, 0] }}
-                      transition={{ repeat: Infinity, duration: 2 }}
-                      className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30 flex items-center justify-center"
-                    >
-                      <MessageSquare className="w-8 h-8 text-purple-400" />
-                    </motion.div>
-                    <p className="font-medium text-slate-300 text-lg mb-2">Nenhuma ativação recente</p>
-                    <p className="text-slate-500">Suas próximas compras aparecerão aqui</p>
-                  </motion.div>
+                  <div className="text-center py-8 text-slate-400">
+                    <MessageSquare className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                    <p className="font-medium">Nenhuma ativação recente</p>
+                  </div>
                 )}
               </CardContent>
             </Card>
-          </motion.div>
-
-          {/* Popular Services */}
-          <motion.div variants={fadeInUp}>
-            <Card className="mb-8 border-0 shadow-2xl bg-gradient-to-br from-slate-800/50 via-slate-700/50 to-slate-800/50 backdrop-blur-lg overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-r from-amber-500/5 to-orange-500/5" />
-              <CardHeader className="relative">
-                <CardTitle className="flex items-center gap-3 text-xl text-white">
-                  <motion.div 
-                    whileHover={{ rotate: 360 }}
-                    transition={{ duration: 0.8 }}
-                    className="p-3 rounded-xl bg-gradient-to-br from-amber-500/20 to-amber-600/20 border border-amber-500/30"
-                  >
-                    <Star className="w-6 h-6 text-amber-400" />
-                  </motion.div>
-                  Serviços Populares
-                  <div className="px-3 py-1 rounded-full bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-amber-300 text-xs font-semibold border border-amber-500/30 shadow-sm">
-                    Mais Usados
+          ) : (
+            <>
+              {/* Search Bar */}
+              <div className="max-w-5xl mx-auto">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 mb-6">
+                <div className="flex-1 relative">
+                  <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
+                  <Input
+                    type="text"
+                    placeholder="Buscar serviço ou país..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full bg-gray-800/50 border border-gray-700/50 rounded-xl pl-12 pr-4 py-3 text-white placeholder:text-slate-400 focus:border-blue-500/50 text-sm shadow-md"
+                  />
+                </div>
+                <div className="flex gap-4">
+                  <div className="relative flex-1 sm:flex-none">
+                    <select className="bg-gray-800/50 border border-gray-700/50 rounded-xl px-4 py-3 text-white text-sm appearance-none pr-10 focus:border-blue-500/50 w-full sm:w-auto shadow-md">
+                      <option>Todos os países</option>
+                    </select>
+                    <ChevronDown className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" />
                   </div>
-                </CardTitle>
-                <p className="text-slate-400 mt-2">
-                  Os serviços mais procurados pelos nossos usuários premium
-                </p>
-              </CardHeader>
-              <CardContent className="relative">
-                <AnimatePresence mode="wait">
-                  {isLoadingPopularPrices ? (
-                    <motion.div 
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
-                    >
-                      {[...Array(6)].map((_, i) => (
-                        <motion.div 
-                          key={i}
-                          animate={{ opacity: [0.5, 1, 0.5] }}
-                          transition={{ repeat: Infinity, duration: 1.5, delay: i * 0.1 }}
-                          className="h-20 bg-slate-700/30 rounded-xl"
-                        />
-                      ))}
-                    </motion.div>
-                  ) : popularPrices.length > 0 ? (
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ duration: 0.5 }}
-                    >
-                      <ServiceList
-                        services={POPULAR_SERVICES}
-                        prices={popularPrices}
-                        userBalance={user.balance}
-                        handlePurchase={handlePurchase}
-                        countryMap={countryMap}
-                      />
-                    </motion.div>
-                  ) : (
-                    <motion.div 
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="text-center py-12"
-                    >
-                      <motion.div 
-                        animate={{ rotate: [0, 5, -5, 0] }}
-                        transition={{ repeat: Infinity, duration: 3 }}
-                        className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-amber-500/20 to-orange-500/20 border border-amber-500/30 flex items-center justify-center"
-                      >
-                        <Star className="w-8 h-8 text-amber-400" />
-                      </motion.div>
-                      <p className="font-medium text-slate-300 text-lg mb-2">Nenhum serviço popular disponível</p>
-                      <p className="text-slate-500">Tente novamente em alguns minutos</p>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </CardContent>
-            </Card>
-          </motion.div>
+                  <button className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-3 hover:bg-gray-700/50 flex-shrink-0 shadow-md">
+                    <Filter className="w-5 h-5 text-slate-400" />
+                  </button>
+                </div>
+                </div>
+              </div>
 
-          {/* All Services */}
-          <motion.div variants={fadeInUp}>
-            <Card className="border-0 shadow-2xl bg-gradient-to-br from-slate-800/50 via-slate-700/50 to-slate-800/50 backdrop-blur-lg overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-purple-500/5" />
-              <CardHeader className="relative">
-                <CardTitle className="flex items-center gap-3 text-xl text-white">
-                  <motion.div 
-                    whileHover={{ scale: 1.1 }}
-                    className="p-3 rounded-xl bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-blue-500/30"
+              {/* Services Grid */}
+              <div className="max-w-6xl mx-auto">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-2 gap-4">
+                {filteredServices.map((service) => {
+                  const servicePrices = filteredServicePrices[service] || [];
+                  const minPrice = servicePrices.length > 0 ? Math.min(...servicePrices.map((p) => p.priceBrl)) : 0;
+                  const availableCountries = servicePrices.length;
+
+                  return (
+                    <DropdownMenu key={service}>
+                      <DropdownMenuTrigger asChild>
+                        <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 rounded-xl p-4 border border-gray-700/30 hover:bg-gray-800/70 transition-all duration-200 cursor-pointer shadow-md">
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center space-x-3 flex-1 min-w-0">
+                              <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-blue-500/20">
+                                <Image
+                                  src={getServiceImageUrl(service)}
+                                  alt={SERVICE_NAME_MAP[service] || service.toUpperCase()}
+                                  width={40}
+                                  height={40}
+                                  className="object-contain"
+                                  onError={(e) => {
+                                    e.currentTarget.src = 'https://smsactivate.s3.eu-central-1.amazonaws.com/assets/ico/other0.webp';
+                                  }}
+                                />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <h3 className="font-semibold text-sm text-white mb-1 truncate">
+                                  {SERVICE_NAME_MAP[service] || service.toUpperCase()}
+                                </h3>
+                                <div className="text-slate-400 text-xs mb-1">
+                                  {Math.floor(Math.random() * 1000000).toLocaleString()}
+                                </div>
+                                <div className="text-slate-400 text-xs flex items-center space-x-1">
+                                  <Globe className="w-3 h-3 flex-shrink-0" />
+                                  <span className="truncate">{availableCountries} países</span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="text-right ml-2 flex-shrink-0">
+                              <div className="text-sm font-bold text-blue-400">R$ {minPrice.toFixed(2)}</div>
+                              <div className="text-slate-500 text-xs">a partir de</div>
+                            </div>
+                          </div>
+
+                          <button className="w-full bg-gray-700/50 hover:bg-gray-600/50 text-white py-2 rounded-lg flex items-center justify-center space-x-2 text-xs font-medium transition-all duration-200">
+                            <span>Ver países disponíveis</span>
+                            <ChevronDown className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </DropdownMenuTrigger>
+
+                      <DropdownMenuContent className="w-96 max-h-[500px] overflow-hidden bg-gray-800/90 backdrop-blur-md border border-gray-700/50 shadow-xl rounded-2xl">
+                        <div className="p-4 border-b border-gray-700/50">
+                          <div className="flex items-center gap-3 mb-3">
+                            <div className="p-2 rounded-lg bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-blue-500/30">
+                              <Image
+                                src={getServiceImageUrl(service)}
+                                alt={SERVICE_NAME_MAP[service] || service.toUpperCase()}
+                                width={20}
+                                height={20}
+                                className="object-contain"
+                                onError={(e) => {
+                                  e.currentTarget.src = 'https://smsactivate.s3.eu-central-1.amazonaws.com/assets/ico/other0.webp';
+                                }}
+                              />
+                            </div>
+                            <div>
+                              <h4 className="text-white font-semibold">{SERVICE_NAME_MAP[service] || service.toUpperCase()}</h4>
+                              <p className="text-sm text-slate-400">{availableCountries} países disponíveis</p>
+                            </div>
+                          </div>
+
+                          <div className="relative">
+                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
+                            <Input
+                              type="text"
+                              placeholder="Pesquisar país..."
+                              value={countrySearchTerm}
+                              onChange={(e) => setCountrySearchTerm(e.target.value)}
+                              className="pl-10 h-10 bg-gray-700/50 border border-gray-600/50 text-white placeholder:text-slate-400 text-sm rounded-lg"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="p-2">
+                          {servicePrices.length > 0 ? (
+                            <List
+                              height={400}
+                              itemCount={servicePrices.length}
+                              itemSize={60}
+                              width="100%"
+                              itemData={{ service, prices: servicePrices }}
+                            >
+                              {Row}
+                            </List>
+                          ) : (
+                            <div className="text-center py-8 text-slate-400">
+                              <div className="w-12 h-12 mx-auto mb-3 rounded-xl bg-gradient-to-br from-gray-600/50 to-gray-700/50 flex items-center justify-center">
+                                <Globe className="w-6 h-6 text-slate-400" />
+                              </div>
+                              <p className="text-sm font-medium text-slate-300 mb-1">Nenhum país disponível</p>
+                              <p className="text-xs text-slate-500">para {SERVICE_NAME_MAP[service] || service.toUpperCase()}</p>
+                            </div>
+                          )}
+                        </div>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  );
+                })}
+                </div>
+              </div>
+
+              {/* Ver Mais Button */}
+              {allServices.length > servicesLimit && (
+                <div className="max-w-6xl mx-auto flex justify-center mt-6">
+                  <Button
+                    onClick={() => setServicesLimit(prev => Math.min(prev + 20, allServices.length))}
+                    className="bg-gray-700/50 hover:bg-gray-700/40 text-white px-6 py-2 rounded-lg font-medium shadow-md transition-all duration-200"
                   >
-                    <Globe className="w-6 h-6 text-blue-400" />
-                  </motion.div>
-                  Todos os Serviços
-                  <div className="px-3 py-1 rounded-full bg-gradient-to-r from-blue-500/20 to-purple-500/20 text-blue-300 text-xs font-semibold border border-blue-500/30">
-                    {totalServices}+ Serviços
-                  </div>
-                </CardTitle>
-                <p className="text-slate-400 mt-2">
-                  Explore nossa coleção completa de serviços globais premium
-                </p>
-              </CardHeader>
-              <CardContent className="relative">
-                <AnimatePresence mode="wait">
-                  {isLoadingAllPrices ? (
-                    <motion.div 
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
-                    >
-                      {[...Array(9)].map((_, i) => (
-                        <motion.div 
-                          key={i}
-                          animate={{ opacity: [0.3, 0.8, 0.3] }}
-                          transition={{ repeat: Infinity, duration: 2, delay: i * 0.1 }}
-                          className="h-20 bg-slate-700/30 rounded-xl"
-                        />
-                      ))}
-                    </motion.div>
-                  ) : allServices.length > 0 ? (
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ duration: 0.5 }}
-                    >
-                      <ServiceList
-                        services={allServices}
-                        prices={allPrices}
-                        userBalance={user.balance}
-                        handlePurchase={handlePurchase}
-                        countryMap={countryMap}
-                      />
-                      {hasMore && (
-                        <motion.div 
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          className="mt-8 text-center"
-                        >
-                          <Button
-                            onClick={loadMore}
-                            disabled={isLoadingAllPrices}
-                            size="lg"
-                            className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg hover:shadow-xl px-8 py-3 rounded-xl"
-                          >
-                            {isLoadingAllPrices ? (
-                              <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                            ) : (
-                              <TrendingUp className="h-5 w-5 mr-2" />
-                            )}
-                            {isLoadingAllPrices ? 'Carregando...' : 'Carregar Mais Serviços'}
-                          </Button>
-                        </motion.div>
-                      )}
-                    </motion.div>
-                  ) : (
-                    <motion.div 
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="text-center py-16"
-                    >
-                      <motion.div 
-                        animate={{ y: [0, -8, 0] }}
-                        transition={{ repeat: Infinity, duration: 2.5 }}
-                        className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-blue-500/30 flex items-center justify-center"
-                      >
-                        <Globe className="w-10 h-10 text-blue-400" />
-                      </motion.div>
-                      <p className="font-medium text-slate-300 text-xl mb-3">Nenhum serviço disponível</p>
-                      <p className="text-slate-500 mb-6">Tente atualizar os preços ou volte mais tarde</p>
-                      <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                        <Button 
-                          onClick={() => window.location.reload()}
-                          className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl px-6"
-                        >
-                          Tentar Novamente
-                        </Button>
-                      </motion.div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </CardContent>
-            </Card>
-          </motion.div>
+                    Ver Mais Serviços ({allServices.length - servicesLimit} restantes)
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
         </div>
-      </motion.div>
-      
-      <AnimatePresence>
-        {selectedActivation && (
-          <PurchaseModal
-            isOpen={!!selectedActivation}
-            onClose={() => setSelectedActivation(null)}
-            service={selectedActivation.service}
-            countryId={selectedActivation.countryId}
-            priceBrl={selectedActivation.priceBrl}
-            userBalance={user.balance}
-            handlePurchase={handlePurchase}
-            countryMap={countryMap}
-            initialPurchaseResult={{
-              activationId: selectedActivation.activationId,
-              phoneNumber: selectedActivation.phoneNumber,
-              creditsSpent: selectedActivation.creditsSpent,
-            }}
-            initialStatus={selectedActivation.status}
-            initialCode={selectedActivation.code}
-            initialStartTime={selectedActivation.createdAt}
-          />
-        )}
-      </AnimatePresence>
+      </div>
+
+      {/* Mobile Bottom Navigation */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-gray-900/50 backdrop-blur-md border-t border-gray-700/30 p-4 z-50">
+        <div className="flex justify-around">
+          <button
+            onClick={() => setShowHistory(false)}
+            className={`flex flex-col items-center space-y-1 py-2 transition-all duration-200 ${
+              !showHistory 
+                ? 'text-blue-400' 
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Settings className="w-6 h-6" />
+            <span className="text-xs font-medium">Serviços</span>
+            {!showHistory && (
+              <div className="w-8 h-0.5 bg-blue-400 rounded-full mt-1"></div>
+            )}
+          </button>
+          <button
+            onClick={() => setShowDepositModal(true)}
+            className="flex flex-col items-center space-y-1 py-2 text-slate-400 hover:text-white transition-all duration-200"
+          >
+            <CreditCard className="w-6 h-6" />
+            <span className="text-xs font-medium">Adicionar Saldo</span>
+          </button>
+          <button
+            onClick={() => setShowHistory(true)}
+            className={`flex flex-col items-center space-y-1 py-2 transition-all duration-200 ${
+              showHistory 
+                ? 'text-blue-400' 
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <History className="w-6 h-6" />
+            <span className="text-xs font-medium">Histórico</span>
+            {showHistory && (
+              <div className="w-8 h-0.5 bg-blue-400 rounded-full mt-1"></div>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Add bottom padding to prevent content being hidden behind mobile nav */}
+      <div className="md:hidden h-20"></div>
+
+      {/* Purchase Modal */}
+      {modalOpen && selectedService && selectedCountryId && selectedPriceBrl !== null && user && (
+        <PurchaseModal
+          isOpen={modalOpen}
+          onClose={() => setModalOpen(false)}
+          service={selectedService}
+          countryId={selectedCountryId}
+          priceBrl={selectedPriceBrl}
+          userBalance={user.balance}
+          handlePurchase={handlePurchase}
+          countryMap={countryMap}
+        />
+      )}
+
+      {/* Activation Modal */}
+      {selectedActivation && user && (
+        <PurchaseModal
+          isOpen={!!selectedActivation}
+          onClose={() => setSelectedActivation(null)}
+          service={selectedActivation.service}
+          countryId={selectedActivation.countryId}
+          priceBrl={selectedActivation.priceBrl}
+          userBalance={user.balance}
+          handlePurchase={handlePurchase}
+          countryMap={countryMap}
+          initialPurchaseResult={{
+            activationId: selectedActivation.activationId,
+            phoneNumber: selectedActivation.phoneNumber,
+            creditsSpent: selectedActivation.creditsSpent,
+          }}
+          initialStatus={selectedActivation.status}
+          initialCode={selectedActivation.code}
+          initialStartTime={selectedActivation.createdAt}
+        />
+      )}
+
+      {/* Deposit Modal */}
+      {showDepositModal && user && (
+        <div suppressHydrationWarning className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900/50 rounded-2xl p-6 w-full max-w-md max-h-[90vh] overflow-auto border border-gray-700/30 shadow-lg">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-bold text-white">Adicionar Saldo</h2>
+              <button
+                onClick={() => setShowDepositModal(false)}
+                className="text-slate-400 hover:text-white"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <DepositForm onSuccess={() => setShowDepositModal(false)} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
