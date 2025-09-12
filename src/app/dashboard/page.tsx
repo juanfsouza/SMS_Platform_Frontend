@@ -23,6 +23,7 @@ import api from '@/lib/api';
 import { toast } from 'sonner';
 import { FixedSizeList as List } from 'react-window';
 import Image from 'next/image';
+import FloatingButton from '@/components/FloatingButton';
 
 // Dynamically import DepositForm with SSR disabled
 const DepositForm = dynamic(() => import('@/components/DepositForm'), {
@@ -661,114 +662,115 @@ export default function DashboardPage() {
 
               {/* Services Grid */}
               <div className="max-w-6xl mx-auto">
+                <FloatingButton />
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-2 gap-4">
-                {filteredServices.map((service) => {
-                  const servicePrices = filteredServicePrices[service] || [];
-                  const minPrice = servicePrices.length > 0 ? Math.min(...servicePrices.map((p) => p.priceBrl)) : 0;
-                  const availableCountries = servicePrices.length;
+{filteredServices.map((service) => {
+  const servicePrices = filteredServicePrices[service] || [];
+  const minPrice = servicePrices.length > 0 ? Math.min(...servicePrices.map((p) => p.priceBrl)) : 0;
+  const availableCountries = servicePrices.length;
 
-                  return (
-                    <DropdownMenu key={service}>
-                      <DropdownMenuTrigger asChild>
-                        <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 rounded-xl p-4 border border-gray-700/30 hover:bg-gray-800/70 transition-all duration-200 cursor-pointer shadow-md">
-                          <div className="flex items-center justify-between mb-3">
-                            <div className="flex items-center space-x-3 flex-1 min-w-0">
-                              <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-blue-500/20">
-                                <Image
-                                  src={getServiceImageUrl(service)}
-                                  alt={SERVICE_NAME_MAP[service] || service.toUpperCase()}
-                                  width={40}
-                                  height={40}
-                                  className="object-contain"
-                                  onError={(e) => {
-                                    e.currentTarget.src = 'https://smsactivate.s3.eu-central-1.amazonaws.com/assets/ico/other0.webp';
-                                  }}
-                                />
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <h3 className="font-semibold text-sm text-white mb-1 truncate">
-                                  {SERVICE_NAME_MAP[service] || service.toUpperCase()}
-                                </h3>
-                                <div className="text-slate-400 text-xs mb-1">
-                                  {Math.floor(Math.random() * 1000000).toLocaleString()}
-                                </div>
-                                <div className="text-slate-400 text-xs flex items-center space-x-1">
-                                  <Globe className="w-3 h-3 flex-shrink-0" />
-                                  <span className="truncate">{availableCountries} países</span>
-                                </div>
-                              </div>
-                            </div>
-                            <div className="text-right ml-2 flex-shrink-0">
-                              <div className="text-sm font-bold text-blue-400">R$ {minPrice.toFixed(2)}</div>
-                              <div className="text-slate-500 text-xs">a partir de</div>
-                            </div>
-                          </div>
+  return (
+    <div key={service} className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 rounded-xl p-4 border border-gray-700/30 hover:bg-gray-800/70 transition-all duration-200 shadow-md">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center space-x-3 flex-1 min-w-0">
+          <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-blue-500/20">
+            <Image
+              src={getServiceImageUrl(service)}
+              alt={SERVICE_NAME_MAP[service] || service.toUpperCase()}
+              width={40}
+              height={40}
+              className="object-contain"
+              onError={(e) => {
+                e.currentTarget.src = 'https://smsactivate.s3.eu-central-1.amazonaws.com/assets/ico/other0.webp';
+              }}
+            />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h3 className="font-semibold text-sm text-white mb-1 truncate">
+              {SERVICE_NAME_MAP[service] || service.toUpperCase()}
+            </h3>
+            <div className="text-slate-400 text-xs mb-1">
+              {Math.floor(Math.random() * 1000000).toLocaleString()}
+            </div>
+            <div className="text-slate-400 text-xs flex items-center space-x-1">
+              <Globe className="w-3 h-3 flex-shrink-0" />
+              <span className="truncate">{availableCountries} países</span>
+            </div>
+          </div>
+        </div>
+        <div className="text-right ml-2 flex-shrink-0">
+          <div className="text-sm font-bold text-blue-400">R$ {minPrice.toFixed(2)}</div>
+          <div className="text-slate-500 text-xs">a partir de</div>
+        </div>
+      </div>
 
-                          <button className="w-full bg-gray-700/50 hover:bg-gray-600/50 text-white py-2 rounded-lg flex items-center justify-center space-x-2 text-xs font-medium transition-all duration-200">
-                            <span>Ver países disponíveis</span>
-                            <ChevronDown className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </DropdownMenuTrigger>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button className="w-full bg-gray-700/50 hover:bg-gray-600/50 text-white py-2 rounded-lg flex items-center justify-center space-x-2 text-xs font-medium transition-all duration-200">
+            <span>Ver países disponíveis</span>
+            <ChevronDown className="w-4 h-4" />
+          </button>
+        </DropdownMenuTrigger>
 
-                      <DropdownMenuContent className="w-96 max-h-[500px] overflow-hidden bg-gray-800/90 backdrop-blur-md border border-gray-700/50 shadow-xl rounded-2xl">
-                        <div className="p-4 border-b border-gray-700/50">
-                          <div className="flex items-center gap-3 mb-3">
-                            <div className="p-2 rounded-lg bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-blue-500/30">
-                              <Image
-                                src={getServiceImageUrl(service)}
-                                alt={SERVICE_NAME_MAP[service] || service.toUpperCase()}
-                                width={20}
-                                height={20}
-                                className="object-contain"
-                                onError={(e) => {
-                                  e.currentTarget.src = 'https://smsactivate.s3.eu-central-1.amazonaws.com/assets/ico/other0.webp';
-                                }}
-                              />
-                            </div>
-                            <div>
-                              <h4 className="text-white font-semibold">{SERVICE_NAME_MAP[service] || service.toUpperCase()}</h4>
-                              <p className="text-sm text-slate-400">{availableCountries} países disponíveis</p>
-                            </div>
-                          </div>
+        <DropdownMenuContent className="w-96 max-h-[500px] overflow-hidden bg-gray-800/90 backdrop-blur-md border border-gray-700/50 shadow-xl rounded-2xl">
+          <div className="p-4 border-b border-gray-700/50">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-2 rounded-lg bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-blue-500/30">
+                <Image
+                  src={getServiceImageUrl(service)}
+                  alt={SERVICE_NAME_MAP[service] || service.toUpperCase()}
+                  width={20}
+                  height={20}
+                  className="object-contain"
+                  onError={(e) => {
+                    e.currentTarget.src = 'https://smsactivate.s3.eu-central-1.amazonaws.com/assets/ico/other0.webp';
+                  }}
+                />
+              </div>
+              <div>
+                <h4 className="text-white font-semibold">{SERVICE_NAME_MAP[service] || service.toUpperCase()}</h4>
+                <p className="text-sm text-slate-400">{availableCountries} países disponíveis</p>
+              </div>
+            </div>
 
-                          <div className="relative">
-                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
-                            <Input
-                              type="text"
-                              placeholder="Pesquisar país..."
-                              value={countrySearchTerm}
-                              onChange={(e) => setCountrySearchTerm(e.target.value)}
-                              className="pl-10 h-10 bg-gray-700/50 border border-gray-600/50 text-white placeholder:text-slate-400 text-sm rounded-lg"
-                            />
-                          </div>
-                        </div>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
+              <Input
+                type="text"
+                placeholder="Pesquisar país..."
+                value={countrySearchTerm}
+                onChange={(e) => setCountrySearchTerm(e.target.value)}
+                className="pl-10 h-10 bg-gray-700/50 border border-gray-600/50 text-white placeholder:text-slate-400 text-sm rounded-lg"
+              />
+            </div>
+          </div>
 
-                        <div className="p-2">
-                          {servicePrices.length > 0 ? (
-                            <List
-                              height={400}
-                              itemCount={servicePrices.length}
-                              itemSize={60}
-                              width="100%"
-                              itemData={{ service, prices: servicePrices }}
-                            >
-                              {Row}
-                            </List>
-                          ) : (
-                            <div className="text-center py-8 text-slate-400">
-                              <div className="w-12 h-12 mx-auto mb-3 rounded-xl bg-gradient-to-br from-gray-600/50 to-gray-700/50 flex items-center justify-center">
-                                <Globe className="w-6 h-6 text-slate-400" />
-                              </div>
-                              <p className="text-sm font-medium text-slate-300 mb-1">Nenhum país disponível</p>
-                              <p className="text-xs text-slate-500">para {SERVICE_NAME_MAP[service] || service.toUpperCase()}</p>
-                            </div>
-                          )}
-                        </div>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  );
-                })}
+          <div className="p-2">
+            {servicePrices.length > 0 ? (
+              <List
+                height={400}
+                itemCount={servicePrices.length}
+                itemSize={60}
+                width="100%"
+                itemData={{ service, prices: servicePrices }}
+              >
+                {Row}
+              </List>
+            ) : (
+              <div className="text-center py-8 text-slate-400">
+                <div className="w-12 h-12 mx-auto mb-3 rounded-xl bg-gradient-to-br from-gray-600/50 to-gray-700/50 flex items-center justify-center">
+                  <Globe className="w-6 h-6 text-slate-400" />
+                </div>
+                <p className="text-sm font-medium text-slate-300 mb-1">Nenhum país disponível</p>
+                <p className="text-xs text-slate-500">para {SERVICE_NAME_MAP[service] || service.toUpperCase()}</p>
+              </div>
+            )}
+          </div>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+})}
                 </div>
               </div>
 

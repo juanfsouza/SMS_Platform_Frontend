@@ -6,7 +6,7 @@ import { useAuthStore } from '@/stores/auth';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { NavigationMenu, NavigationMenuItem, NavigationMenuList } from '@/components/ui/navigation-menu';
 import Link from 'next/link';
-import { LogOut, User, Settings, LayoutDashboard, Menu, X, ChevronUp } from 'lucide-react';
+import { LogOut, User, Settings, LayoutDashboard, Menu, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Navbar() {
@@ -39,11 +39,17 @@ export default function Navbar() {
   const handleLogout = () => {
     setUser(null);
     setIsUserMenuOpen(false);
+    setIsMenuOpen(false);
     router.push('/login');
   };
 
   const toggleUserMenu = () => {
     setIsUserMenuOpen(!isUserMenuOpen);
+  };
+
+  const closeMenus = () => {
+    setIsMenuOpen(false);
+    setIsUserMenuOpen(false);
   };
 
   return (
@@ -117,8 +123,8 @@ export default function Navbar() {
                 </Link>
               </nav>
 
-              {/* User Section */}
-              <div className="flex items-center">
+              {/* Desktop User Section */}
+              <div className="hidden md:flex items-center">
                 {user ? (
                   <div className="relative">
                     <motion.button
@@ -147,20 +153,16 @@ export default function Navbar() {
                       <div className="relative">
                         <Avatar className="w-9 h-9 ring-2 ring-offset-2 ring-white/20 transition-all duration-300 hover:ring-offset-4">
                           <AvatarFallback className="bg-gradient-to-br from-primary to-primary/80 text-primary-foreground font-custom-bold text-sm">
-
+                            {user.name?.charAt(0)?.toUpperCase()}
                           </AvatarFallback>
                         </Avatar>
                         <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-400 rounded-full border-2 border-white shadow-sm" />
                       </div>
-                      
-                      <ChevronUp className={`w-4 h-4 transition-all duration-300 ${
-                        isUserMenuOpen ? 'rotate-180' : ''
-                      } ${isScrolled ? 'text-muted-foreground' : 'text-white/70'}`} />
                     </motion.button>
 
-                    {/* User Dropdown Menu */}
+                    {/* Desktop User Dropdown Menu */}
                     {isUserMenuOpen && (
-                      <div className="absolute right-0 mt-2 w-56 bg-card/95 backdrop-blur-xl border border-border/50 rounded-xl shadow-2xl py-2 z-50">
+                      <div className="absolute right-0 mt-1 w-56 bg-card/95 backdrop-blur-xl border border-border/50 rounded-xl shadow-2xl py-2 z-50">
                         <div className="px-4 py-3 border-b border-border/50">
                           <p className="text-sm font-medium text-foreground">{user.name}</p>
                           <p className="text-xs text-muted-foreground">
@@ -216,53 +218,132 @@ export default function Navbar() {
                     </Link>
                   </motion.div>
                 )}
-
-                {/* Mobile menu button */}
-                <button
-                  onClick={() => setIsMenuOpen(!isMenuOpen)}
-                  className={`md:hidden ml-4 transition-colors p-2 rounded-lg ${
-                    isScrolled 
-                      ? 'text-muted-foreground hover:text-foreground hover:bg-accent/50' 
-                      : 'text-white/80 hover:text-white hover:bg-white/10'
-                  }`}
-                >
-                  {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-                </button>
               </div>
+
+              {/* Mobile menu button */}
+              <button
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                className={`md:hidden transition-colors p-2 rounded-lg ${
+                  isScrolled 
+                    ? 'text-muted-foreground hover:text-foreground hover:bg-accent/50' 
+                    : 'text-white/80 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+              </button>
             </div>
 
             {/* Mobile Navigation */}
             {isMenuOpen && (
-              <div className="md:hidden bg-card/95 backdrop-blur-xl border-t border-border/50 py-4 mt-1 rounded-b-xl">
-                <div className="flex flex-col space-y-4 px-4">
-                  <Link href="#faq" className="text-muted-foreground hover:text-foreground transition-colors py-2">
+              <motion.div 
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.2 }}
+                className="md:hidden bg-card/95 backdrop-blur-xl border-t border-border/50 py-4 mt-1 rounded-b-xl"
+              >
+                <div className="flex flex-col space-y-2 px-4">
+                  {/* User Info Section (Mobile) */}
+                  {user && (
+                    <div className="flex items-center space-x-3 px-3 py-3 bg-accent/20 rounded-xl mb-4">
+                      <Avatar className="w-10 h-10 ring-2 ring-primary/20">
+                        <AvatarFallback className="bg-gradient-to-br from-primary to-primary/80 text-primary-foreground font-custom-bold text-sm">
+                          {user.name?.charAt(0)?.toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold text-foreground">{user.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {user.role === 'admin' ? 'Administrador' : 'Usuário'}
+                        </p>
+                      </div>
+                      <div className="w-2 h-2 bg-green-400 rounded-full" />
+                    </div>
+                  )}
+
+                  {/* Navigation Links */}
+                  <Link 
+                    href="#faq" 
+                    onClick={closeMenus}
+                    className="flex items-center text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors py-3 px-3 rounded-lg"
+                  >
                     FAQ
                   </Link>
-                  <Link href="#security" className="text-muted-foreground hover:text-foreground transition-colors py-2">
+                  
+                  <Link 
+                    href="#security" 
+                    onClick={closeMenus}
+                    className="flex items-center text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors py-3 px-3 rounded-lg"
+                  >
                     Segurança
                   </Link>
-                  
-                  {!user && (
+
+                  {/* User Menu Items (Mobile) */}
+                  {user ? (
                     <>
-                      <hr className="border-border" />
+                      <hr className="border-border/50 my-2" />
+                      
+                      <Link 
+                        href="/profile" 
+                        onClick={closeMenus}
+                        className="flex items-center text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors py-3 px-3 rounded-lg"
+                      >
+                        <User className="mr-3 h-4 w-4" />
+                        Meu Perfil
+                      </Link>
+                      
+                      <Link 
+                        href="/dashboard" 
+                        onClick={closeMenus}
+                        className="flex items-center text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors py-3 px-3 rounded-lg"
+                      >
+                        <LayoutDashboard className="mr-3 h-4 w-4" />
+                        Dashboard
+                      </Link>
+                      
+                      {user?.role === 'admin' && (
+                        <Link 
+                          href="/mod/config" 
+                          onClick={closeMenus}
+                          className="flex items-center text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors py-3 px-3 rounded-lg"
+                        >
+                          <Settings className="mr-3 h-4 w-4" />
+                          Configurações
+                        </Link>
+                      )}
+                      
+                      <hr className="border-border/50 my-2" />
+                      
+                      <button 
+                        onClick={handleLogout}
+                        className="flex items-center w-full text-destructive hover:text-destructive/90 hover:bg-destructive/10 transition-colors py-3 px-3 rounded-lg"
+                      >
+                        <LogOut className="mr-3 h-4 w-4" />
+                        Sair da Conta
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <hr className="border-border/50 my-2" />
                       <Link 
                         href="/login"
-                        className="bg-primary text-primary-foreground px-6 py-3 rounded-lg w-full text-center font-medium transition-colors hover:bg-primary/90"
+                        onClick={closeMenus}
+                        className="bg-primary text-primary-foreground px-4 py-3 rounded-lg w-full text-center font-medium transition-colors hover:bg-primary/90"
                       >
                         Entrar
                       </Link>
                     </>
                   )}
                 </div>
-              </div>
+              </motion.div>
             )}
           </div>
           
-          {/* Click outside to close user menu */}
-          {isUserMenuOpen && (
+          {/* Click outside to close menus */}
+          {(isUserMenuOpen || isMenuOpen) && (
             <div 
               className="fixed inset-0 z-40" 
-              onClick={() => setIsUserMenuOpen(false)}
+              onClick={closeMenus}
             />
           )}
 

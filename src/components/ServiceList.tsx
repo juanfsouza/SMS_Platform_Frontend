@@ -123,10 +123,10 @@ export function ServiceList({
       >
         <DropdownMenuItem
           key={`${item.service}-${item.country}-${index}`}
-          className="flex justify-between items-center p-3 my-1 rounded-lg bg-slate-700/20 hover:bg-slate-600/30 border border-slate-600/20 hover:border-slate-500/40 transition-all duration-200"
+          className="flex justify-between items-center p-2 sm:p-3 my-1 rounded-lg bg-slate-700/20 hover:bg-slate-600/30 border border-slate-600/20 hover:border-slate-500/40 transition-all duration-200"
         >
-          <span className="flex items-center space-x-3">
-            <div className="relative">
+          <span className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-1">
+            <div className="relative flex-shrink-0">
               {countryIso2 !== 'UN' ? (
                 <Image
                   src={`https://flagcdn.com/24x18/${countryIso2.toLowerCase()}.png`}
@@ -139,8 +139,8 @@ export function ServiceList({
                 <div className="w-6 h-4 bg-gradient-to-br from-slate-600 to-slate-700 rounded-sm" />
               )}
             </div>
-            <div>
-              <span className="text-white font-medium text-sm">{countryName}</span>
+            <div className="min-w-0 flex-1">
+              <span className="text-white font-medium text-xs sm:text-sm block truncate">{countryName}</span>
               <div className="flex items-center gap-2 text-xs text-slate-400">
                 <span className="flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-green-400"></span>
@@ -149,19 +149,20 @@ export function ServiceList({
               </div>
             </div>
           </span>
-          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="flex-shrink-0 ml-2">
             <Button
               size="sm"
               onClick={() => openPurchaseModal(item.service, item.country, item.priceBrl)}
               disabled={userBalance < item.priceBrl}
-              className={`rounded-lg text-xs px-3 py-1.5 ${
+              className={`rounded-lg text-xs px-2 sm:px-3 py-1.5 ${
                 userBalance < item.priceBrl 
                   ? 'bg-slate-600/50 text-slate-400 cursor-not-allowed' 
                   : 'bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white shadow-sm'
               }`}
             >
               <ShoppingCart className="w-3 h-3 mr-1" />
-              {userBalance < item.priceBrl ? 'Sem saldo' : 'Comprar'}
+              <span className="hidden sm:inline">{userBalance < item.priceBrl ? 'Sem saldo' : 'Comprar'}</span>
+              <span className="sm:hidden">{userBalance < item.priceBrl ? 'Sem' : 'OK'}</span>
             </Button>
           </motion.div>
         </DropdownMenuItem>
@@ -194,7 +195,7 @@ export function ServiceList({
         initial="hidden"
         animate="visible"
         variants={staggerContainer}
-        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6"
       >
         <AnimatePresence>
           {filteredServices.map((service) => {
@@ -211,45 +212,46 @@ export function ServiceList({
                 {...scaleOnHover}
                 layout
               >
-                <DropdownMenu>
+                <DropdownMenu modal={false}>
                   <DropdownMenuTrigger asChild>
                     <Button 
                       variant="outline" 
-                      className="w-full h-auto p-0 border-0 bg-gradient-to-br from-slate-800/50 to-slate-700/50 hover:from-slate-700/60 hover:to-slate-600/60 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl overflow-hidden group"
+                      className="w-full h-auto p-0 border-0 bg-gradient-to-br from-slate-800/50 to-slate-700/50 hover:from-slate-700/60 hover:to-slate-600/60 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl overflow-hidden group touch-manipulation"
+                      onTouchStart={(e) => e.preventDefault()}
                     >
-                      <div className="w-full p-6 text-left">
-                        <div className="flex items-center gap-4 mb-4">
+                      <div className="w-full p-4 sm:p-6 text-left">
+                        <div className="flex items-center gap-3 sm:gap-4 mb-3 sm:mb-4">
                           <motion.div 
                             whileHover={{ rotate: 5, scale: 1.1 }}
-                            className="relative p-3 rounded-xl bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-blue-500/30 shadow-sm"
+                            className="relative p-2 sm:p-3 rounded-xl bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-blue-500/30 shadow-sm flex-shrink-0"
                           >
                             <Icon 
                               icon={SIMPLE_ICONS_MAP[service] || 'simple-icons:web'} 
-                              className="w-8 h-8 text-blue-400" 
+                              className="w-6 h-6 sm:w-8 sm:h-8 text-blue-400" 
                             />
                             <div className="absolute inset-0 bg-gradient-to-br from-blue-400/10 to-purple-400/10 rounded-xl blur-sm" />
                           </motion.div>
                           <motion.div 
                             whileHover={{ x: 2 }}
-                            className="p-1.5 rounded-lg bg-slate-600/30 border border-slate-500/30"
+                            className="p-1.5 rounded-lg bg-slate-600/30 border border-slate-500/30 flex-shrink-0 ml-auto"
                           >
                             <ChevronDown className="w-4 h-4 text-slate-400" />
                           </motion.div>
                         </div>
 
-                        <div className="space-y-3">
-                          <h3 className="text-white font-semibold text-lg leading-tight">
+                        <div className="space-y-2 sm:space-y-3">
+                          <h3 className="text-white font-semibold text-base sm:text-lg leading-tight">
                             {SERVICE_NAME_MAP[service] || service.toUpperCase()}
                           </h3>
                           
                           <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2 text-sm text-slate-400">
-                              <MapPin className="w-4 h-4" />
+                            <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-400">
+                              <MapPin className="w-3 h-3 sm:w-4 sm:h-4" />
                               <span>{availableCountries} países</span>
                             </div>
                             {minPrice > 0 && (
-                              <div className="flex items-center gap-2 text-sm">
-                                <span className="text-slate-400">a partir de</span>
+                              <div className="flex items-center gap-2 text-xs sm:text-sm">
+                                <span className="text-slate-400 hidden sm:inline">a partir de</span>
                                 <span className="text-green-400 font-semibold">
                                   R$ {minPrice.toFixed(2)}
                                 </span>
@@ -274,11 +276,18 @@ export function ServiceList({
                   </DropdownMenuTrigger>
 
                   <DropdownMenuContent 
-                    className="w-96 max-h-[500px] overflow-hidden bg-slate-800/95 backdrop-blur-xl border-slate-700/50 shadow-2xl rounded-2xl"
+                    className="w-[calc(100vw-2rem)] sm:w-96 max-h-[70vh] sm:max-h-[500px] overflow-hidden bg-slate-800/95 backdrop-blur-xl border-slate-700/50 shadow-2xl rounded-2xl"
                     side="bottom"
-                    align="start"
+                    align="center"
+                    sideOffset={8}
+                    onInteractOutside={(e) => {
+                      // Previne fechamento acidental no mobile
+                      if (e.type === 'pointerdown' && (e.target as HTMLElement)?.closest('[data-radix-dropdown-menu-content]')) {
+                        e.preventDefault();
+                      }
+                    }}
                   >
-                    <div className="p-4 border-b border-slate-700/50">
+                    <div className="p-3 sm:p-4 border-b border-slate-700/50">
                       <div className="flex items-center gap-3 mb-3">
                         <div className="p-2 rounded-lg bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-blue-500/30">
                           <Icon 
@@ -286,8 +295,8 @@ export function ServiceList({
                             className="w-5 h-5 text-blue-400" 
                           />
                         </div>
-                        <div>
-                          <h4 className="text-white font-semibold">
+                        <div className="min-w-0 flex-1">
+                          <h4 className="text-white font-semibold text-sm sm:text-base truncate">
                             {SERVICE_NAME_MAP[service] || service.toUpperCase()}
                           </h4>
                           <p className="text-xs text-slate-400">
@@ -311,7 +320,7 @@ export function ServiceList({
                     <div className="p-2">
                       {servicePrices.length > 0 ? (
                         <List
-                          height={400}
+                          height={Math.min(400, window.innerHeight * 0.4)}
                           itemCount={servicePrices.length}
                           itemSize={60}
                           width="100%"

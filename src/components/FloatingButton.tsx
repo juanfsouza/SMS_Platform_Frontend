@@ -4,7 +4,7 @@ import Link from 'next/link';
 export default function FloatingTelegramButton() {
   return (
     <Link href="https://t.me/FDXSUP_bot" target="_blank" rel="noopener noreferrer">
-      <button className="fixed bottom-4 right-2 sm:bottom-6 sm:right-6 bg-[#0088cc] hover:bg-[#0077b3] text-white p-3 sm:p-4 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-[#0088cc]/50 z-50 group">
+      <button className="fixed bottom-30 right-3 sm:bottom-6 sm:right-6 bg-[#0088cc] hover:bg-[#0077b3] text-white p-3 sm:p-4 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-[#0088cc]/50 z-50 group">
         <Icon icon="mingcute:telegram-fill" className="text-xl sm:text-2xl" />
         <span className="sr-only">Contato via Telegram</span>
         
