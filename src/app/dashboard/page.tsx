@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
-import { Search, Filter, ChevronDown, Plus, Settings, CreditCard, History, Signal, Copy, Wallet, Globe, MessageSquare, X } from 'lucide-react';
+import { Search, Filter, ChevronDown, Plus, Settings, CreditCard, History, Signal, Wallet, Globe, MessageSquare, X } from 'lucide-react';
 import { SERVICE_NAME_MAP } from '@/data/services';
 import { COUNTRY_ID_TO_ISO } from '@/data/countryMapping';
 import { getName } from 'country-list';
@@ -55,7 +55,6 @@ export default function DashboardPage() {
   const { user, setUser } = useAuthStore();
   const router = useRouter();
   const [prices, setPrices] = useState<PriceData[]>([]);
-  const [affiliateLink, setAffiliateLink] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
@@ -215,22 +214,6 @@ export default function DashboardPage() {
     }
   }, [handleUnauthorized]);
 
-  const fetchAffiliateLink = useCallback(async () => {
-    if (!user) return;
-    try {
-      const response = await api.get('/affiliate/link', {
-        headers: { Authorization: `Bearer ${user?.token}` },
-      });
-      setAffiliateLink(response.data.affiliateLink);
-    } catch (error: unknown) {
-      if (error && typeof error === 'object' && 'response' in error) {
-        const apiError = error as { response?: { status?: number } };
-        if (apiError.response?.status === 401) {
-          handleUnauthorized();
-        }
-      }
-    }
-  }, [user, handleUnauthorized]);
 
   const fetchRecentActivations = useCallback(async () => {
     if (!user) return;
@@ -318,10 +301,7 @@ export default function DashboardPage() {
     // Carregar dados essenciais primeiro
     const loadEssentialData = async () => {
       try {
-        await Promise.all([
-          fetchPrices(),
-          fetchAffiliateLink()
-        ]);
+        await fetchPrices();
       } catch (error) {
         console.error('Error loading essential data:', error);
       }
@@ -331,7 +311,7 @@ export default function DashboardPage() {
     
     // Carregar ativações em background
     fetchRecentActivations();
-  }, [user, router, fetchPrices, fetchAffiliateLink, fetchRecentActivations]);
+  }, [user, router, fetchPrices, fetchRecentActivations]);
 
   useEffect(() => {
     if (!user || !hasActivePolling) return;
@@ -397,7 +377,7 @@ export default function DashboardPage() {
       isLoading: boolean;
     };
   }) => {
-    const { prices, onLoadMore, hasMore, isLoading } = data;
+    const { prices, hasMore, isLoading } = data;
     
     // Se é o último item e há mais para carregar, mostrar indicador de carregamento
     if (index === prices.length && hasMore) {
