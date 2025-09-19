@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
-import { Search, Filter, ChevronDown, Plus, Settings, CreditCard, History, Signal, Copy, Wallet, Globe, MessageSquare } from 'lucide-react';
+import { Search, Filter, ChevronDown, Plus, Settings, CreditCard, History, Signal, Copy, Wallet, Globe, MessageSquare, X } from 'lucide-react';
 import { SERVICE_NAME_MAP } from '@/data/services';
 import { COUNTRY_ID_TO_ISO } from '@/data/countryMapping';
 import { getName } from 'country-list';
@@ -49,6 +49,8 @@ interface Activation {
   code: string | null;
 }
 
+const ITEMS_PER_PAGE = 20;
+
 export default function DashboardPage() {
   const { user, setUser } = useAuthStore();
   const router = useRouter();
@@ -67,10 +69,13 @@ export default function DashboardPage() {
   const [hasActivePolling, setHasActivePolling] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [pricesLoaded, setPricesLoaded] = useState(false);
-  const [servicesLimit, setServicesLimit] = useState(40); // Limitar serviços iniciais
+  const [servicesLimit, setServicesLimit] = useState(10);
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  const [dropdownItemsToShow, setDropdownItemsToShow] = useState<Record<string, number>>({});
+  const [loadingMore, setLoadingMore] = useState<Record<string, boolean>>({});
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const MAX_ACTIVATION_AGE = 20 * 60 * 1000; // 20 minutes
+  const loadMoreTimeoutRef = useRef<Record<string, NodeJS.Timeout | null>>({});
+  const MAX_ACTIVATION_AGE = 20 * 60 * 1000;
 
   const countryMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -145,6 +150,40 @@ export default function DashboardPage() {
     }, {} as Record<string, PriceData[]>);
   }, [filteredServices, servicePricesMap, countrySearchTerm, countryMap]);
 
+  // Função para resetar o contador de itens quando abrir/fechar dropdown
+  const resetDropdownItems = (service: string) => {
+    setDropdownItemsToShow(prev => ({
+      ...prev,
+      [service]: ITEMS_PER_PAGE
+    }));
+  };
+
+  // Função para carregar mais itens com debounce
+  const loadMoreItems = (service: string) => {
+    // Evitar múltiplas chamadas simultâneas
+    if (loadingMore[service]) return;
+    
+    // Limpar timeout anterior se existir
+    if (loadMoreTimeoutRef.current[service]) {
+      clearTimeout(loadMoreTimeoutRef.current[service]!);
+    }
+    
+    // Definir estado de carregamento
+    setLoadingMore(prev => ({ ...prev, [service]: true }));
+    
+    // Debounce de 300ms para evitar múltiplas chamadas
+    loadMoreTimeoutRef.current[service] = setTimeout(() => {
+      setDropdownItemsToShow(prev => ({
+        ...prev,
+        [service]: (prev[service] || ITEMS_PER_PAGE) + ITEMS_PER_PAGE
+      }));
+      
+      // Limpar estado de carregamento após um pequeno delay
+      setTimeout(() => {
+        setLoadingMore(prev => ({ ...prev, [service]: false }));
+      }, 500);
+    }, 300);
+  };
 
   const handleUnauthorized = useCallback(() => {
     setUser(null);
@@ -157,8 +196,8 @@ export default function DashboardPage() {
       // Carregar apenas os primeiros 1000 registros para melhor performance
       const response = await api.get<PriceData[]>('/credits/prices/filter', { 
         params: { 
-          limit: 5000,
-          sort: 'priceBrl:asc' // Ordenar por preço para mostrar os mais baratos primeiro
+          limit: 20000,
+          sort: 'priceBrl:asc'
         } 
       });
       setPrices(response.data);
@@ -323,10 +362,26 @@ export default function DashboardPage() {
     return () => clearInterval(interval);
   }, [user, hasActivePolling, handleUnauthorized, MAX_ACTIVATION_AGE]);
 
+  // Cleanup dos timeouts quando o componente for desmontado
+  useEffect(() => {
+    return () => {
+      // Limpar timeout de busca
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+      
+      // Limpar timeouts de carregamento
+      Object.values(loadMoreTimeoutRef.current).forEach(timeout => {
+        if (timeout) clearTimeout(timeout);
+      });
+    };
+  }, []);
+
   const getServiceImageUrl = (service: string) => {
     return `https://smsactivate.s3.eu-central-1.amazonaws.com/assets/ico/${service}0.webp`;
   };
 
+  // Row component otimizado com memo mais específico
   const Row = React.memo(({
     index,
     style,
@@ -334,9 +389,35 @@ export default function DashboardPage() {
   }: {
     index: number;
     style: React.CSSProperties;
-    data: { service: string; prices: PriceData[] };
+    data: { 
+      service: string; 
+      prices: PriceData[]; 
+      onLoadMore: () => void;
+      hasMore: boolean;
+      isLoading: boolean;
+    };
   }) => {
-    const { prices } = data;
+    const { prices, onLoadMore, hasMore, isLoading } = data;
+    
+    // Se é o último item e há mais para carregar, mostrar indicador de carregamento
+    if (index === prices.length && hasMore) {
+      return (
+        <div style={style}>
+          <div className="flex justify-center items-center p-3">
+            <div className="flex items-center space-x-2 text-blue-400 text-sm">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-400"></div>
+              <span>{isLoading ? 'Carregando mais países...' : 'Carregar mais países...'}</span>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Se o index é maior que o array, não renderizar
+    if (index >= prices.length) {
+      return <div style={style}></div>;
+    }
+
     const item = prices[index];
     const countryName = countryMap[item.country] || `(${item.country})`;
     const countryIso2 = COUNTRY_ID_TO_ISO[item.country] || 'UN';
@@ -386,6 +467,15 @@ export default function DashboardPage() {
           </Button>
         </DropdownMenuItem>
       </div>
+    );
+  }, (prevProps, nextProps) => {
+    // Comparação mais específica para evitar re-renders desnecessários
+    return (
+      prevProps.index === nextProps.index &&
+      prevProps.data.service === nextProps.data.service &&
+      prevProps.data.prices.length === nextProps.data.prices.length &&
+      prevProps.data.hasMore === nextProps.data.hasMore &&
+      prevProps.data.isLoading === nextProps.data.isLoading
     );
   });
 
@@ -514,48 +604,6 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Affiliate Card - Hidden for cleaner look like in image */}
-          {false && (
-            <div className="mb-6">
-              <Card className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 border border-gray-700/30 shadow-lg">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-emerald-500/20 rounded-xl flex items-center justify-center">
-                        <Copy className="w-6 h-6 text-emerald-400" />
-                      </div>
-                      <div>
-                        <div className="text-slate-300 text-sm font-medium">Link de Afiliado</div>
-                        <div className="text-xl font-bold text-white">Compartilhe e Ganhe</div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex gap-4">
-                    <Input
-                      value={affiliateLink}
-                      readOnly
-                      placeholder="Carregando link..."
-                      className="flex-1 bg-gray-800/50 border border-gray-700/50 text-white placeholder:text-slate-400 focus:border-blue-500/50 rounded-xl px-4 py-3"
-                    />
-                    <Button
-                      onClick={() => {
-                        if (affiliateLink) {
-                          navigator.clipboard.writeText(affiliateLink);
-                          toast.success('Link de afiliado copiado!');
-                        } else {
-                          toast.error('Nenhum link disponível');
-                        }
-                      }}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl shadow-md transition-all duration-200"
-                    >
-                      Copiar
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
           {/* Conditional Content: Services or History */}
           {showHistory ? (
             <Card className="mb-6 bg-gradient-to-br from-gray-900/50 to-gray-800/50 border border-gray-700/30 shadow-lg">
@@ -664,113 +712,153 @@ export default function DashboardPage() {
               <div className="max-w-6xl mx-auto">
                 <FloatingButton />
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-2 gap-4">
-{filteredServices.map((service) => {
-  const servicePrices = filteredServicePrices[service] || [];
-  const minPrice = servicePrices.length > 0 ? Math.min(...servicePrices.map((p) => p.priceBrl)) : 0;
-  const availableCountries = servicePrices.length;
+                  {filteredServices.map((service) => {
+                    const servicePrices = filteredServicePrices[service] || [];
+                    const minPrice = servicePrices.length > 0 ? Math.min(...servicePrices.map((p) => p.priceBrl)) : 0;
+                    const availableCountries = servicePrices.length;
 
-  return (
-    <div key={service} className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 rounded-xl p-4 border border-gray-700/30 hover:bg-gray-800/70 transition-all duration-200 shadow-md">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center space-x-3 flex-1 min-w-0">
-          <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-blue-500/20">
-            <Image
-              src={getServiceImageUrl(service)}
-              alt={SERVICE_NAME_MAP[service] || service.toUpperCase()}
-              width={40}
-              height={40}
-              className="object-contain"
-              onError={(e) => {
-                e.currentTarget.src = 'https://smsactivate.s3.eu-central-1.amazonaws.com/assets/ico/other0.webp';
-              }}
-            />
-          </div>
-          <div className="min-w-0 flex-1">
-            <h3 className="font-semibold text-sm text-white mb-1 truncate">
-              {SERVICE_NAME_MAP[service] || service.toUpperCase()}
-            </h3>
-            <div className="text-slate-400 text-xs mb-1">
-              {Math.floor(Math.random() * 1000000).toLocaleString()}
-            </div>
-            <div className="text-slate-400 text-xs flex items-center space-x-1">
-              <Globe className="w-3 h-3 flex-shrink-0" />
-              <span className="truncate">{availableCountries} países</span>
-            </div>
-          </div>
-        </div>
-        <div className="text-right ml-2 flex-shrink-0">
-          <div className="text-sm font-bold text-blue-400">R$ {minPrice.toFixed(2)}</div>
-          <div className="text-slate-500 text-xs">a partir de</div>
-        </div>
-      </div>
+                    return (
+                      <div key={service} className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 rounded-xl p-4 border border-gray-700/30 hover:bg-gray-800/70 transition-all duration-200 shadow-md">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center space-x-3 flex-1 min-w-0">
+                            <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-blue-500/20">
+                              <Image
+                                src={getServiceImageUrl(service)}
+                                alt={SERVICE_NAME_MAP[service] || service.toUpperCase()}
+                                width={40}
+                                height={40}
+                                className="object-contain"
+                                onError={(e) => {
+                                  e.currentTarget.src = 'https://smsactivate.s3.eu-central-1.amazonaws.com/assets/ico/other0.webp';
+                                }}
+                              />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <h3 className="font-semibold text-sm text-white mb-1 truncate">
+                                {SERVICE_NAME_MAP[service] || service.toUpperCase()}
+                              </h3>
+                              <div className="text-slate-400 text-xs mb-1">
+                                {Math.floor(Math.random() * 1000000).toLocaleString()}
+                              </div>
+                              <div className="text-slate-400 text-xs flex items-center space-x-1">
+                                <Globe className="w-3 h-3 flex-shrink-0" />
+                                <span className="truncate">{availableCountries} países</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-right ml-2 flex-shrink-0">
+                            <div className="text-sm font-bold text-blue-400">R$ {minPrice.toFixed(2)}</div>
+                            <div className="text-slate-500 text-xs">a partir de</div>
+                          </div>
+                        </div>
+                        <DropdownMenu onOpenChange={(open) => {
+                          if (open) {
+                            resetDropdownItems(service);
+                            setCountrySearchTerm(''); // Limpar busca quando abrir
+                          }
+                        }}>
+                          <DropdownMenuTrigger asChild>
+                            <button className="w-full bg-gray-700/50 hover:bg-gray-600/50 text-white py-2 rounded-lg flex items-center justify-center space-x-2 text-xs font-medium transition-all duration-200">
+                              <span>Ver países disponíveis</span>
+                              <ChevronDown className="w-4 h-4" />
+                            </button>
+                          </DropdownMenuTrigger>
 
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button className="w-full bg-gray-700/50 hover:bg-gray-600/50 text-white py-2 rounded-lg flex items-center justify-center space-x-2 text-xs font-medium transition-all duration-200">
-            <span>Ver países disponíveis</span>
-            <ChevronDown className="w-4 h-4" />
-          </button>
-        </DropdownMenuTrigger>
+                          <DropdownMenuContent className="w-96 max-h-[500px] overflow-hidden bg-gray-800/90 backdrop-blur-md border border-gray-700/50 shadow-xl rounded-2xl">
+                            <div className="p-4 border-b border-gray-700/50 relative">
+                              {/* Close Button */}
+                                <button
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    // Dispara o evento Escape que o Radix UI já escuta
+                                    document.dispatchEvent(new KeyboardEvent('keydown', { 
+                                      key: 'Escape',
+                                      bubbles: true 
+                                    }));
+                                  }}
+                                  className="absolute right-3 top-3 text-slate-400 hover:text-white transition-colors duration-200"
+                                  aria-label="Fechar dropdown"
+                                >
+                                  <X className="w-5 h-5" />
+                                </button>
+                              <div className="flex items-center gap-3 mb-3">
+                                <div className="p-2 rounded-lg bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-blue-500/30">
+                                  <Image
+                                    src={getServiceImageUrl(service)}
+                                    alt={SERVICE_NAME_MAP[service] || service.toUpperCase()}
+                                    width={20}
+                                    height={20}
+                                    className="object-contain"
+                                    onError={(e) => {
+                                      e.currentTarget.src = 'https://smsactivate.s3.eu-central-1.amazonaws.com/assets/ico/other0.webp';
+                                    }}
+                                  />
+                                </div>
+                                <div>
+                                  <h4 className="text-white font-semibold">{SERVICE_NAME_MAP[service] || service.toUpperCase()}</h4>
+                                  <p className="text-sm text-slate-400">{availableCountries} países disponíveis</p>
+                                </div>
+                              </div>
 
-        <DropdownMenuContent className="w-96 max-h-[500px] overflow-hidden bg-gray-800/90 backdrop-blur-md border border-gray-700/50 shadow-xl rounded-2xl">
-          <div className="p-4 border-b border-gray-700/50">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 rounded-lg bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-blue-500/30">
-                <Image
-                  src={getServiceImageUrl(service)}
-                  alt={SERVICE_NAME_MAP[service] || service.toUpperCase()}
-                  width={20}
-                  height={20}
-                  className="object-contain"
-                  onError={(e) => {
-                    e.currentTarget.src = 'https://smsactivate.s3.eu-central-1.amazonaws.com/assets/ico/other0.webp';
-                  }}
-                />
-              </div>
-              <div>
-                <h4 className="text-white font-semibold">{SERVICE_NAME_MAP[service] || service.toUpperCase()}</h4>
-                <p className="text-sm text-slate-400">{availableCountries} países disponíveis</p>
-              </div>
-            </div>
+                              <div className="relative">
+                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
+                                <Input
+                                  type="text"
+                                  placeholder="Pesquisar país..."
+                                  value={countrySearchTerm}
+                                  onChange={(e) => setCountrySearchTerm(e.target.value)}
+                                  className="pl-10 h-10 bg-gray-700/50 border border-gray-600/50 text-white placeholder:text-slate-400 text-sm rounded-lg"
+                                />
+                              </div>
+                            </div>
 
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
-              <Input
-                type="text"
-                placeholder="Pesquisar país..."
-                value={countrySearchTerm}
-                onChange={(e) => setCountrySearchTerm(e.target.value)}
-                className="pl-10 h-10 bg-gray-700/50 border border-gray-600/50 text-white placeholder:text-slate-400 text-sm rounded-lg"
-              />
-            </div>
-          </div>
+                            <div className="p-2">
+                              {(() => {
+                                const itemsToShow = dropdownItemsToShow[service] || ITEMS_PER_PAGE;
+                                const displayedPrices = servicePrices.slice(0, itemsToShow);
+                                const hasMore = itemsToShow < servicePrices.length;
+                                const listItemCount = displayedPrices.length + (hasMore ? 1 : 0);
 
-          <div className="p-2">
-            {servicePrices.length > 0 ? (
-              <List
-                height={400}
-                itemCount={servicePrices.length}
-                itemSize={60}
-                width="100%"
-                itemData={{ service, prices: servicePrices }}
-              >
-                {Row}
-              </List>
-            ) : (
-              <div className="text-center py-8 text-slate-400">
-                <div className="w-12 h-12 mx-auto mb-3 rounded-xl bg-gradient-to-br from-gray-600/50 to-gray-700/50 flex items-center justify-center">
-                  <Globe className="w-6 h-6 text-slate-400" />
-                </div>
-                <p className="text-sm font-medium text-slate-300 mb-1">Nenhum país disponível</p>
-                <p className="text-xs text-slate-500">para {SERVICE_NAME_MAP[service] || service.toUpperCase()}</p>
-              </div>
-            )}
-          </div>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
-  );
-})}
+                                return servicePrices.length > 0 ? (
+                                  <List
+                                    height={300}
+                                    itemCount={listItemCount}
+                                    itemSize={70}
+                                    width="100%"
+                                    itemData={{ 
+                                      service, 
+                                      prices: displayedPrices,
+                                      onLoadMore: () => loadMoreItems(service),
+                                      hasMore,
+                                      isLoading: loadingMore[service] || false
+                                    }}
+                                    onItemsRendered={({ visibleStopIndex }) => {
+                                      // Carregar mais itens quando o usuário estiver próximo do final
+                                      // (5 itens antes do final da lista visível) e não estiver carregando
+                                      if (hasMore && !loadingMore[service] && visibleStopIndex >= displayedPrices.length - 5) {
+                                        loadMoreItems(service);
+                                      }
+                                    }}
+                                  >
+                                    {Row}
+                                  </List>
+                                ) : (
+                                  <div className="text-center py-8 text-slate-400">
+                                    <div className="w-12 h-12 mx-auto mb-3 rounded-xl bg-gradient-to-br from-gray-600/50 to-gray-700/50 flex items-center justify-center">
+                                      <Globe className="w-6 h-6 text-slate-400" />
+                                    </div>
+                                    <p className="text-sm font-medium text-slate-300 mb-1">Nenhum país disponível</p>
+                                    <p className="text-xs text-slate-500">para {SERVICE_NAME_MAP[service] || service.toUpperCase()}</p>
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
