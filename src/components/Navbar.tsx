@@ -36,6 +36,28 @@ export default function Navbar() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, [lastScrollY]);
 
+  // Fechar menus quando clicar fora (apenas para desktop)
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      
+      // Só fechar se for desktop e clicar fora do menu
+      if (window.innerWidth >= 768) {
+        if (isUserMenuOpen && !target.closest('[data-user-menu]')) {
+          setIsUserMenuOpen(false);
+        }
+      }
+    };
+
+    if (isUserMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isUserMenuOpen]);
+
   const handleLogout = () => {
     setUser(null);
     setIsUserMenuOpen(false);
@@ -52,25 +74,23 @@ export default function Navbar() {
     setIsUserMenuOpen(false);
   };
 
-  const handleMobileLinkClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    const href = e.currentTarget.getAttribute('href');
-    if (href) {
-      closeMenus();
-      // Pequeno delay para permitir que a animação de fechamento termine
-      setTimeout(() => {
-        if (href.startsWith('#')) {
-          // Para links âncora, rolar para o elemento
-          const element = document.querySelector(href);
-          if (element) {
-            element.scrollIntoView({ behavior: 'smooth' });
-          }
-        } else {
-          // Para links de página, navegar
-          router.push(href);
+  const handleMobileLinkClick = (href: string) => {
+    // Fechar menu imediatamente
+    closeMenus();
+    
+    // Navegar após um pequeno delay
+    setTimeout(() => {
+      if (href.startsWith('#')) {
+        // Para links âncora, rolar para o elemento
+        const element = document.querySelector(href);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth' });
         }
-      }, 150);
-    }
+      } else {
+        // Para links de página, navegar
+        router.push(href);
+      }
+    }, 100);
   };
 
   return (
@@ -183,7 +203,7 @@ export default function Navbar() {
 
                     {/* Desktop User Dropdown Menu */}
                     {isUserMenuOpen && (
-                      <div className="absolute right-0 mt-1 w-56 bg-card/95 backdrop-blur-xl border border-border/50 rounded-xl shadow-2xl py-2 z-50">
+                      <div data-user-menu className="absolute right-0 mt-1 w-56 bg-card/95 backdrop-blur-xl border border-border/50 rounded-xl shadow-2xl py-2 z-50">
                         <div className="px-4 py-3 border-b border-border/50">
                           <p className="text-sm font-medium text-foreground">{user.name}</p>
                           <p className="text-xs text-muted-foreground">
@@ -283,54 +303,49 @@ export default function Navbar() {
                   )}
 
                   {/* Navigation Links */}
-                  <Link 
-                    href="#faq" 
-                    onClick={handleMobileLinkClick}
-                    className="flex items-center text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors py-3 px-3 rounded-lg"
+                  <button 
+                    onClick={() => handleMobileLinkClick("#faq")}
+                    className="flex items-center text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors py-3 px-3 rounded-lg w-full text-left"
                   >
                     FAQ
-                  </Link>
+                  </button>
                   
-                  <Link 
-                    href="#security" 
-                    onClick={handleMobileLinkClick}
-                    className="flex items-center text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors py-3 px-3 rounded-lg"
+                  <button 
+                    onClick={() => handleMobileLinkClick("#security")}
+                    className="flex items-center text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors py-3 px-3 rounded-lg w-full text-left"
                   >
                     Segurança
-                  </Link>
+                  </button>
 
                   {/* User Menu Items (Mobile) */}
                   {user ? (
                     <>
                       <hr className="border-border/50 my-2" />
                       
-                      <Link 
-                        href="/profile" 
-                        onClick={handleMobileLinkClick}
-                        className="flex items-center text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors py-3 px-3 rounded-lg"
+                      <button 
+                        onClick={() => handleMobileLinkClick("/profile")}
+                        className="flex items-center text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors py-3 px-3 rounded-lg w-full text-left"
                       >
                         <User className="mr-3 h-4 w-4" />
                         Meu Perfil
-                      </Link>
+                      </button>
                       
-                      <Link 
-                        href="/dashboard" 
-                        onClick={handleMobileLinkClick}
-                        className="flex items-center text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors py-3 px-3 rounded-lg"
+                      <button 
+                        onClick={() => handleMobileLinkClick("/dashboard")}
+                        className="flex items-center text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors py-3 px-3 rounded-lg w-full text-left"
                       >
                         <LayoutDashboard className="mr-3 h-4 w-4" />
                         Dashboard
-                      </Link>
+                      </button>
                       
                       {user?.role === 'admin' && (
-                        <Link 
-                          href="/mod/config" 
-                          onClick={handleMobileLinkClick}
-                          className="flex items-center text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors py-3 px-3 rounded-lg"
+                        <button 
+                          onClick={() => handleMobileLinkClick("/mod/config")}
+                          className="flex items-center text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors py-3 px-3 rounded-lg w-full text-left"
                         >
                           <Settings className="mr-3 h-4 w-4" />
                           Configurações
-                        </Link>
+                        </button>
                       )}
                       
                       <hr className="border-border/50 my-2" />
@@ -346,13 +361,12 @@ export default function Navbar() {
                   ) : (
                     <>
                       <hr className="border-border/50 my-2" />
-                      <Link 
-                        href="/login"
-                        onClick={handleMobileLinkClick}
+                      <button 
+                        onClick={() => handleMobileLinkClick("/login")}
                         className="bg-primary text-primary-foreground px-4 py-3 rounded-lg w-full text-center font-medium transition-colors hover:bg-primary/90"
                       >
                         Entrar
-                      </Link>
+                      </button>
                     </>
                   )}
                 </div>
@@ -360,13 +374,6 @@ export default function Navbar() {
             )}
           </div>
           
-          {/* Click outside to close menus */}
-          {(isUserMenuOpen || isMenuOpen) && (
-            <div 
-              className="fixed inset-0 z-40" 
-              onClick={closeMenus}
-            />
-          )}
 
           {/* Decorative gradient line */}
           <div className={`absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-border/50 to-transparent transition-opacity duration-300 ${

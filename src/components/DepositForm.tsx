@@ -13,7 +13,9 @@ import { useAuthStore } from '@/stores/auth';
 import { useRouter } from 'next/navigation';
 
 
-type DepositFormProps = Record<string, never>;
+interface DepositFormProps {
+  onSuccess?: () => void;
+}
 interface CheckoutResponse {
   transactionId: string;
   qrCode: string;
@@ -31,7 +33,7 @@ interface ApiError extends Error {
   };
 }
 
-const DepositForm: React.FC<DepositFormProps> = () => {
+const DepositForm: React.FC<DepositFormProps> = ({ onSuccess }) => {
   const { user } = useAuthStore();
   const router = useRouter();
   const [amount, setAmount] = useState<string>('');
@@ -114,6 +116,7 @@ const DepositForm: React.FC<DepositFormProps> = () => {
 
         if (status === 'paid' || localStatus === 'COMPLETED') {
           toast.success('Pagamento confirmado! Redirecionando...');
+          onSuccess?.();
           router.push('/confirmed');
         } else if (status === 'expired' || localStatus === 'EXPIRED') {
           setError('Transação expirada ou não encontrada');
@@ -176,10 +179,10 @@ const DepositForm: React.FC<DepositFormProps> = () => {
               type="number"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              min="0.50"
+              min="10.00"
               step="0.01"
               className="bg-secondary/50 border-border/50"
-              placeholder="Mínimo R$ 0,50"
+              placeholder="Mínimo R$ 10.00"
               required
               disabled={isLoading}
             />
