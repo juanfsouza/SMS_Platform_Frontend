@@ -52,6 +52,27 @@ export default function Navbar() {
     setIsUserMenuOpen(false);
   };
 
+  const handleMobileLinkClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const href = e.currentTarget.getAttribute('href');
+    if (href) {
+      closeMenus();
+      // Pequeno delay para permitir que a animação de fechamento termine
+      setTimeout(() => {
+        if (href.startsWith('#')) {
+          // Para links âncora, rolar para o elemento
+          const element = document.querySelector(href);
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth' });
+          }
+        } else {
+          // Para links de página, navegar
+          router.push(href);
+        }
+      }, 150);
+    }
+  };
+
   return (
     <AnimatePresence>
       {isVisible && (
@@ -264,7 +285,7 @@ export default function Navbar() {
                   {/* Navigation Links */}
                   <Link 
                     href="#faq" 
-                    onClick={closeMenus}
+                    onClick={handleMobileLinkClick}
                     className="flex items-center text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors py-3 px-3 rounded-lg"
                   >
                     FAQ
@@ -272,7 +293,7 @@ export default function Navbar() {
                   
                   <Link 
                     href="#security" 
-                    onClick={closeMenus}
+                    onClick={handleMobileLinkClick}
                     className="flex items-center text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors py-3 px-3 rounded-lg"
                   >
                     Segurança
@@ -285,7 +306,7 @@ export default function Navbar() {
                       
                       <Link 
                         href="/profile" 
-                        onClick={closeMenus}
+                        onClick={handleMobileLinkClick}
                         className="flex items-center text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors py-3 px-3 rounded-lg"
                       >
                         <User className="mr-3 h-4 w-4" />
@@ -294,7 +315,7 @@ export default function Navbar() {
                       
                       <Link 
                         href="/dashboard" 
-                        onClick={closeMenus}
+                        onClick={handleMobileLinkClick}
                         className="flex items-center text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors py-3 px-3 rounded-lg"
                       >
                         <LayoutDashboard className="mr-3 h-4 w-4" />
@@ -304,7 +325,7 @@ export default function Navbar() {
                       {user?.role === 'admin' && (
                         <Link 
                           href="/mod/config" 
-                          onClick={closeMenus}
+                          onClick={handleMobileLinkClick}
                           className="flex items-center text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors py-3 px-3 rounded-lg"
                         >
                           <Settings className="mr-3 h-4 w-4" />
@@ -327,7 +348,7 @@ export default function Navbar() {
                       <hr className="border-border/50 my-2" />
                       <Link 
                         href="/login"
-                        onClick={closeMenus}
+                        onClick={handleMobileLinkClick}
                         className="bg-primary text-primary-foreground px-4 py-3 rounded-lg w-full text-center font-medium transition-colors hover:bg-primary/90"
                       >
                         Entrar

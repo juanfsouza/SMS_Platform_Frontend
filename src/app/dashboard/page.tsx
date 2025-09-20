@@ -21,13 +21,16 @@ import { PurchaseModal } from '@/components/PurchaseModal';
 import Navbar from '@/components/Navbar';
 import api from '@/lib/api';
 import { toast } from 'sonner';
-import { FixedSizeList as List } from 'react-window';
 import Image from 'next/image';
 import FloatingButton from '@/components/FloatingButton';
 
-// Dynamically import DepositForm with SSR disabled
 const DepositForm = dynamic(() => import('@/components/DepositForm'), {
   ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center p-8">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+    </div>
+  ),
 }) as React.ComponentType<{ onSuccess?: () => void }>;
 
 interface PriceData {
@@ -56,6 +59,12 @@ export default function DashboardPage() {
   const router = useRouter();
   const [prices, setPrices] = useState<PriceData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadingMorePrices, setLoadingMorePrices] = useState(false);
+  const [hasMorePrices, setHasMorePrices] = useState(true);
+  const [isLoadingMoreServices, setIsLoadingMoreServices] = useState(false);
+  const [servicePricesCache, setServicePricesCache] = useState<Record<string, PriceData[]>>({});
+  const [loadingServicePrices, setLoadingServicePrices] = useState<Record<string, boolean>>({});
+  const [openDropdowns, setOpenDropdowns] = useState<Record<string, boolean>>({});
   const [searchTerm, setSearchTerm] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedService, setSelectedService] = useState<string | null>(null);
@@ -68,7 +77,7 @@ export default function DashboardPage() {
   const [hasActivePolling, setHasActivePolling] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [pricesLoaded, setPricesLoaded] = useState(false);
-  const [servicesLimit, setServicesLimit] = useState(10);
+  const [servicesLimit, setServicesLimit] = useState(6);
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [dropdownItemsToShow, setDropdownItemsToShow] = useState<Record<string, number>>({});
   const [loadingMore, setLoadingMore] = useState<Record<string, boolean>>({});
@@ -133,10 +142,11 @@ export default function DashboardPage() {
     const map: Record<string, Array<PriceData>> = {};
     const servicesToMap = debouncedSearchTerm ? allServices : services;
     servicesToMap.forEach((service) => {
-      map[service] = prices.filter((item) => item.service === service);
+      // Usar cache se disponível, senão usar dados gerais
+      map[service] = servicePricesCache[service] || prices.filter((item) => item.service === service);
     });
     return map;
-  }, [allServices, services, prices, debouncedSearchTerm]);
+  }, [allServices, services, prices, debouncedSearchTerm, servicePricesCache]);
 
   const filteredServicePrices = useMemo(() => {
     return filteredServices.reduce((acc, service) => {
@@ -192,15 +202,16 @@ export default function DashboardPage() {
   const fetchPrices = useCallback(async () => {
     try {
       setIsLoading(true);
-      // Carregar apenas os primeiros 1000 registros para melhor performance
+      // Carregar apenas os primeiros 1000 registros para melhor performance inicial
       const response = await api.get<PriceData[]>('/credits/prices/filter', { 
         params: { 
-          limit: 20000,
+          limit: 1000,
           sort: 'priceBrl:asc'
         } 
       });
       setPrices(response.data);
       setPricesLoaded(true);
+      setHasMorePrices(response.data.length === 1000);
     } catch (error: unknown) {
       toast.error('Falha ao carregar preços');
       if (error && typeof error === 'object' && 'response' in error) {
@@ -213,6 +224,84 @@ export default function DashboardPage() {
       setIsLoading(false);
     }
   }, [handleUnauthorized]);
+
+  const loadMorePrices = useCallback(async () => {
+    if (loadingMorePrices || !hasMorePrices) return;
+    
+    try {
+      setLoadingMorePrices(true);
+      const response = await api.get<PriceData[]>('/credits/prices/filter', { 
+        params: { 
+          limit: 2000,
+          offset: prices.length,
+          sort: 'priceBrl:asc'
+        } 
+      });
+      
+      if (response.data.length === 0) {
+        setHasMorePrices(false);
+      } else {
+        setPrices(prev => [...prev, ...response.data]);
+        setHasMorePrices(response.data.length === 2000);
+      }
+    } catch (error: unknown) {
+      toast.error('Falha ao carregar mais preços');
+      if (error && typeof error === 'object' && 'response' in error) {
+        const apiError = error as { response?: { status?: number } };
+        if (apiError.response?.status === 401) {
+          handleUnauthorized();
+        }
+      }
+    } finally {
+      setLoadingMorePrices(false);
+    }
+  }, [loadingMorePrices, hasMorePrices, prices.length, handleUnauthorized]);
+
+  const loadMoreServices = useCallback(async () => {
+    if (isLoadingMoreServices || allServices.length <= servicesLimit) return;
+    
+    try {
+      setIsLoadingMoreServices(true);
+      // Simular um pequeno delay para melhor UX
+      await new Promise(resolve => setTimeout(resolve, 500));
+      setServicesLimit(prev => Math.min(prev + 6, allServices.length));
+    } finally {
+      setIsLoadingMoreServices(false);
+    }
+  }, [isLoadingMoreServices, allServices.length, servicesLimit]);
+
+  const loadServicePrices = useCallback(async (service: string, offset: number = 0) => {
+    if (loadingServicePrices[service]) return;
+    
+    try {
+      setLoadingServicePrices(prev => ({ ...prev, [service]: true }));
+      
+      const response = await api.get<PriceData[]>('/credits/prices/filter', { 
+        params: { 
+          service,
+          limit: 50, // Carregar apenas 50 países por vez
+          offset,
+          sort: 'priceBrl:asc'
+        } 
+      });
+      
+      setServicePricesCache(prev => ({
+        ...prev,
+        [service]: offset === 0 ? response.data : [...(prev[service] || []), ...response.data]
+      }));
+      
+    } catch (error: unknown) {
+      toast.error(`Falha ao carregar países para ${service}`);
+      if (error && typeof error === 'object' && 'response' in error) {
+        const apiError = error as { response?: { status?: number } };
+        if (apiError.response?.status === 401) {
+          handleUnauthorized();
+        }
+      }
+    } finally {
+      setLoadingServicePrices(prev => ({ ...prev, [service]: false }));
+    }
+  }, [loadingServicePrices, handleUnauthorized]);
 
 
   const fetchRecentActivations = useCallback(async () => {
@@ -301,16 +390,16 @@ export default function DashboardPage() {
     // Carregar dados essenciais primeiro
     const loadEssentialData = async () => {
       try {
-        await fetchPrices();
+        // Carregar preços em background para não bloquear a UI
+        fetchPrices();
+        // Carregar ativações em paralelo
+        fetchRecentActivations();
       } catch (error) {
         console.error('Error loading essential data:', error);
       }
     };
 
     loadEssentialData();
-    
-    // Carregar ativações em background
-    fetchRecentActivations();
   }, [user, router, fetchPrices, fetchRecentActivations]);
 
   useEffect(() => {
@@ -341,6 +430,33 @@ export default function DashboardPage() {
 
     return () => clearInterval(interval);
   }, [user, hasActivePolling, handleUnauthorized, MAX_ACTIVATION_AGE]);
+
+  // Hook para carregamento automático no scroll
+  useEffect(() => {
+    const handleScroll = () => {
+      if (isLoading || !pricesLoaded) return;
+      
+      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+      const windowHeight = window.innerHeight;
+      const documentHeight = document.documentElement.scrollHeight;
+      
+      // Carregar mais dados quando estiver próximo do final (100px do final)
+      if (scrollTop + windowHeight >= documentHeight - 100) {
+        // Carregar mais preços se necessário
+        if (hasMorePrices && !loadingMorePrices) {
+          loadMorePrices();
+        }
+        
+        // Carregar mais serviços se necessário
+        if (allServices.length > servicesLimit && !isLoadingMoreServices) {
+          loadMoreServices();
+        }
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [isLoading, pricesLoaded, hasMorePrices, loadingMorePrices, allServices.length, servicesLimit, isLoadingMoreServices, loadMorePrices, loadMoreServices]);
 
   // Cleanup dos timeouts quando o componente for desmontado
   useEffect(() => {
@@ -461,6 +577,282 @@ export default function DashboardPage() {
 
   Row.displayName = 'Row';
 
+  // Componente de serviço memoizado para melhor performance
+  const ServiceCard = React.memo(({ 
+    service, 
+    servicePrices, 
+    minPrice, 
+    availableCountries 
+  }: {
+    service: string;
+    servicePrices: PriceData[];
+    minPrice: number;
+    availableCountries: number;
+  }) => {
+    const [dropdownItemsToShow, setDropdownItemsToShow] = useState(ITEMS_PER_PAGE);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [countrySearchTerm, setCountrySearchTerm] = useState('');
+    const [hasLoadedAllCountries, setHasLoadedAllCountries] = useState(false);
+    const [localServicePrices, setLocalServicePrices] = useState<PriceData[]>(servicePrices);
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
+    // Sincronizar estado local com servicePrices quando mudar
+    useEffect(() => {
+      if (servicePrices.length > 0 && localServicePrices.length === 0) {
+        setLocalServicePrices(servicePrices);
+      }
+    }, [servicePrices, localServicePrices.length]);
+
+    const resetDropdownItems = () => {
+      setDropdownItemsToShow(ITEMS_PER_PAGE);
+    };
+
+    const loadMoreItems = async () => {
+      if (loadingMore || hasLoadedAllCountries) return;
+      
+      setLoadingMore(true);
+      
+      try {
+        // Carregar mais países do servidor
+        const currentCount = localServicePrices.length;
+        const response = await api.get<PriceData[]>('/credits/prices/filter', { 
+          params: { 
+            service,
+            limit: 50,
+            offset: currentCount,
+            sort: 'priceBrl:asc'
+          } 
+        });
+        
+        if (response.data.length === 0) {
+          setHasLoadedAllCountries(true);
+        } else {
+          // Atualizar apenas o estado local, não o cache global
+          setLocalServicePrices(prev => [...prev, ...response.data]);
+          setDropdownItemsToShow(prev => prev + ITEMS_PER_PAGE);
+        }
+      } catch (error) {
+        console.error('Erro ao carregar mais países:', error);
+      } finally {
+        setLoadingMore(false);
+      }
+    };
+
+    // Auto-load mais países quando o usuário rola no dropdown
+    const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+      const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+      const isNearBottom = scrollTop + clientHeight >= scrollHeight - 50;
+      
+      if (isNearBottom && !loadingMore && !hasLoadedAllCountries) {
+        loadMoreItems();
+      }
+    };
+
+    const filteredPrices = useMemo(() => {
+      return localServicePrices.filter((item) =>
+        countryMap[item.country]?.toLowerCase().includes(countrySearchTerm.toLowerCase()) ||
+        item.country.toLowerCase().includes(countrySearchTerm.toLowerCase())
+      );
+    }, [localServicePrices, countrySearchTerm, countryMap]);
+
+    return (
+      <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 rounded-xl p-4 border border-gray-700/30 hover:bg-gray-800/70 transition-all duration-200 shadow-md">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center space-x-3 flex-1 min-w-0">
+            <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-blue-500/20">
+              <Image
+                src={getServiceImageUrl(service)}
+                alt={SERVICE_NAME_MAP[service] || service.toUpperCase()}
+                width={40}
+                height={40}
+                className="object-contain"
+                onError={(e) => {
+                  e.currentTarget.src = 'https://smsactivate.s3.eu-central-1.amazonaws.com/assets/ico/other0.webp';
+                }}
+              />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h3 className="font-semibold text-sm text-white mb-1 truncate">
+                {SERVICE_NAME_MAP[service] || service.toUpperCase()}
+              </h3>
+              <div className="text-slate-400 text-xs mb-1">
+                {Math.floor(Math.random() * 1000000).toLocaleString()}
+              </div>
+              <div className="text-slate-400 text-xs flex items-center space-x-1">
+                <Globe className="w-3 h-3 flex-shrink-0" />
+                <span className="truncate">{availableCountries} países</span>
+              </div>
+            </div>
+          </div>
+          <div className="text-right ml-2 flex-shrink-0">
+            <div className="text-sm font-bold text-blue-400">R$ {minPrice.toFixed(2)}</div>
+            <div className="text-slate-500 text-xs">a partir de</div>
+          </div>
+        </div>
+        <DropdownMenu onOpenChange={(open) => {
+          setIsDropdownOpen(open);
+          if (open) {
+            resetDropdownItems();
+            setCountrySearchTerm('');
+            // Se não temos dados locais, carregar do servidor
+            if (localServicePrices.length === 0) {
+              loadMoreItems();
+            }
+          }
+        }}>
+          <DropdownMenuTrigger asChild>
+            <button className="w-full bg-gray-700/50 hover:bg-gray-600/50 text-white py-2 rounded-lg flex items-center justify-center space-x-2 text-xs font-medium transition-all duration-200">
+              <span>Ver países disponíveis</span>
+              <ChevronDown className="w-4 h-4" />
+            </button>
+          </DropdownMenuTrigger>
+
+          <DropdownMenuContent className="w-96 max-h-[500px] overflow-hidden bg-gray-800/90 backdrop-blur-md border border-gray-700/50 shadow-xl rounded-2xl">
+            <div className="p-4 border-b border-gray-700/50 relative">
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  document.dispatchEvent(new KeyboardEvent('keydown', { 
+                    key: 'Escape',
+                    bubbles: true 
+                  }));
+                }}
+                className="absolute right-3 top-3 text-slate-400 hover:text-white transition-colors duration-200"
+                aria-label="Fechar dropdown"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              <div className="flex items-center gap-3 mb-3">
+                <div className="p-2 rounded-lg bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-blue-500/30">
+                  <Image
+                    src={getServiceImageUrl(service)}
+                    alt={SERVICE_NAME_MAP[service] || service.toUpperCase()}
+                    width={20}
+                    height={20}
+                    className="object-contain"
+                    onError={(e) => {
+                      e.currentTarget.src = 'https://smsactivate.s3.eu-central-1.amazonaws.com/assets/ico/other0.webp';
+                    }}
+                  />
+                </div>
+                <div>
+                  <h4 className="text-white font-semibold">{SERVICE_NAME_MAP[service] || service.toUpperCase()}</h4>
+                  <p className="text-sm text-slate-400">{availableCountries} países disponíveis</p>
+                </div>
+              </div>
+
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
+                <Input
+                  type="text"
+                  placeholder="Pesquisar país..."
+                  value={countrySearchTerm}
+                  onChange={(e) => setCountrySearchTerm(e.target.value)}
+                  className="pl-10 h-10 bg-gray-700/50 border border-gray-600/50 text-white placeholder:text-slate-400 text-sm rounded-lg"
+                />
+              </div>
+            </div>
+
+            <div className="p-2">
+              {(() => {
+                const itemsToShow = dropdownItemsToShow;
+                const displayedPrices = filteredPrices.slice(0, itemsToShow);
+                const hasMore = itemsToShow < filteredPrices.length;
+
+                return filteredPrices.length > 0 ? (
+                  <div className="max-h-[300px] overflow-y-auto" onScroll={handleScroll}>
+                    {displayedPrices.map((item, index) => {
+                      const countryName = countryMap[item.country] || `(${item.country})`;
+                      const countryIso2 = COUNTRY_ID_TO_ISO[item.country] || 'UN';
+
+                      return (
+                        <div key={`${item.country}-${index}`} className="flex justify-between items-center p-3 my-1 rounded-lg bg-slate-700/20 hover:bg-slate-600/30 border border-slate-600/20 hover:border-slate-500/40 transition-all duration-200">
+                          <span className="flex items-center space-x-3 flex-1 min-w-0">
+                            <div className="relative flex-shrink-0">
+                              {countryIso2 !== 'UN' ? (
+                                <Image
+                                  src={`https://flagcdn.com/24x18/${countryIso2.toLowerCase()}.png`}
+                                  alt={countryName}
+                                  width={24}
+                                  height={18}
+                                  className="rounded-sm shadow-sm"
+                                />
+                              ) : (
+                                <div className="w-6 h-4 bg-gradient-to-br from-slate-600 to-slate-700 rounded-sm" />
+                              )}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <span className="text-white font-medium text-sm truncate block">{countryName}</span>
+                              <div className="flex items-center gap-2 text-xs text-slate-400 mt-1">
+                                <span className="flex items-center gap-1">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-green-400"></span>
+                                  R$ {item.priceBrl.toFixed(2)}
+                                </span>
+                              </div>
+                            </div>
+                          </span>
+                          <Button
+                            size="sm"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              openPurchaseModal(item.service, item.country, item.priceBrl);
+                            }}
+                            disabled={!user?.balance || user.balance < item.priceBrl}
+                            className={`rounded-lg text-xs px-3 py-1.5 ${
+                              !user?.balance || user.balance < item.priceBrl
+                                ? 'bg-slate-600/50 text-slate-400 cursor-not-allowed'
+                                : 'bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white shadow-sm'
+                            }`}
+                          >
+                            {!user?.balance || user.balance < item.priceBrl ? 'Sem saldo' : 'Comprar'}
+                          </Button>
+                        </div>
+                      );
+                    })}
+                    {loadingMore && (
+                      <div className="flex justify-center items-center p-3">
+                        <div className="flex items-center space-x-2 text-blue-400 text-sm">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-400"></div>
+                          <span>Carregando mais países...</span>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {hasLoadedAllCountries && !loadingMore && (
+                      <div className="flex justify-center items-center p-3">
+                        <div className="text-slate-400 text-sm">
+                          Todos os países foram carregados
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-slate-400">
+                    <div className="w-12 h-12 mx-auto mb-3 rounded-xl bg-gradient-to-br from-gray-600/50 to-gray-700/50 flex items-center justify-center">
+                      <Globe className="w-6 h-6 text-slate-400" />
+                    </div>
+                    <p className="text-sm font-medium text-slate-300 mb-1">Nenhum país disponível</p>
+                    <p className="text-xs text-slate-500">para {SERVICE_NAME_MAP[service] || service.toUpperCase()}</p>
+                  </div>
+                );
+              })()}
+            </div>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    );
+  }, (prevProps, nextProps) => {
+    return (
+      prevProps.service === nextProps.service &&
+      prevProps.minPrice === nextProps.minPrice &&
+      prevProps.availableCountries === nextProps.availableCountries
+    );
+  });
+
+  ServiceCard.displayName = 'ServiceCard';
+
   if (isLoading && !pricesLoaded) {
     return (
       <div className="min-h-screen bg-[#0B1426] flex items-center justify-center text-white">
@@ -563,7 +955,7 @@ export default function DashboardPage() {
                       <Globe className="w-4 h-4 text-blue-400" />
                     </div>
                     <div>
-                      <div className="text-lg font-bold text-white">1500</div>
+                      <div className="text-lg font-bold text-white">194</div>
                       <div className="text-slate-400 text-xs">Países</div>
                     </div>
                   </div>
@@ -698,161 +1090,43 @@ export default function DashboardPage() {
                     const availableCountries = servicePrices.length;
 
                     return (
-                      <div key={service} className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 rounded-xl p-4 border border-gray-700/30 hover:bg-gray-800/70 transition-all duration-200 shadow-md">
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center space-x-3 flex-1 min-w-0">
-                            <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-blue-500/20">
-                              <Image
-                                src={getServiceImageUrl(service)}
-                                alt={SERVICE_NAME_MAP[service] || service.toUpperCase()}
-                                width={40}
-                                height={40}
-                                className="object-contain"
-                                onError={(e) => {
-                                  e.currentTarget.src = 'https://smsactivate.s3.eu-central-1.amazonaws.com/assets/ico/other0.webp';
-                                }}
-                              />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <h3 className="font-semibold text-sm text-white mb-1 truncate">
-                                {SERVICE_NAME_MAP[service] || service.toUpperCase()}
-                              </h3>
-                              <div className="text-slate-400 text-xs mb-1">
-                                {Math.floor(Math.random() * 1000000).toLocaleString()}
-                              </div>
-                              <div className="text-slate-400 text-xs flex items-center space-x-1">
-                                <Globe className="w-3 h-3 flex-shrink-0" />
-                                <span className="truncate">{availableCountries} países</span>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="text-right ml-2 flex-shrink-0">
-                            <div className="text-sm font-bold text-blue-400">R$ {minPrice.toFixed(2)}</div>
-                            <div className="text-slate-500 text-xs">a partir de</div>
-                          </div>
-                        </div>
-                        <DropdownMenu onOpenChange={(open) => {
-                          if (open) {
-                            resetDropdownItems(service);
-                            setCountrySearchTerm(''); // Limpar busca quando abrir
-                          }
-                        }}>
-                          <DropdownMenuTrigger asChild>
-                            <button className="w-full bg-gray-700/50 hover:bg-gray-600/50 text-white py-2 rounded-lg flex items-center justify-center space-x-2 text-xs font-medium transition-all duration-200">
-                              <span>Ver países disponíveis</span>
-                              <ChevronDown className="w-4 h-4" />
-                            </button>
-                          </DropdownMenuTrigger>
-
-                          <DropdownMenuContent className="w-96 max-h-[500px] overflow-hidden bg-gray-800/90 backdrop-blur-md border border-gray-700/50 shadow-xl rounded-2xl">
-                            <div className="p-4 border-b border-gray-700/50 relative">
-                              {/* Close Button */}
-                                <button
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    // Dispara o evento Escape que o Radix UI já escuta
-                                    document.dispatchEvent(new KeyboardEvent('keydown', { 
-                                      key: 'Escape',
-                                      bubbles: true 
-                                    }));
-                                  }}
-                                  className="absolute right-3 top-3 text-slate-400 hover:text-white transition-colors duration-200"
-                                  aria-label="Fechar dropdown"
-                                >
-                                  <X className="w-5 h-5" />
-                                </button>
-                              <div className="flex items-center gap-3 mb-3">
-                                <div className="p-2 rounded-lg bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-blue-500/30">
-                                  <Image
-                                    src={getServiceImageUrl(service)}
-                                    alt={SERVICE_NAME_MAP[service] || service.toUpperCase()}
-                                    width={20}
-                                    height={20}
-                                    className="object-contain"
-                                    onError={(e) => {
-                                      e.currentTarget.src = 'https://smsactivate.s3.eu-central-1.amazonaws.com/assets/ico/other0.webp';
-                                    }}
-                                  />
-                                </div>
-                                <div>
-                                  <h4 className="text-white font-semibold">{SERVICE_NAME_MAP[service] || service.toUpperCase()}</h4>
-                                  <p className="text-sm text-slate-400">{availableCountries} países disponíveis</p>
-                                </div>
-                              </div>
-
-                              <div className="relative">
-                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
-                                <Input
-                                  type="text"
-                                  placeholder="Pesquisar país..."
-                                  value={countrySearchTerm}
-                                  onChange={(e) => setCountrySearchTerm(e.target.value)}
-                                  className="pl-10 h-10 bg-gray-700/50 border border-gray-600/50 text-white placeholder:text-slate-400 text-sm rounded-lg"
-                                />
-                              </div>
-                            </div>
-
-                            <div className="p-2">
-                              {(() => {
-                                const itemsToShow = dropdownItemsToShow[service] || ITEMS_PER_PAGE;
-                                const displayedPrices = servicePrices.slice(0, itemsToShow);
-                                const hasMore = itemsToShow < servicePrices.length;
-                                const listItemCount = displayedPrices.length + (hasMore ? 1 : 0);
-
-                                return servicePrices.length > 0 ? (
-                                  <List
-                                    height={300}
-                                    itemCount={listItemCount}
-                                    itemSize={70}
-                                    width="100%"
-                                    itemData={{ 
-                                      service, 
-                                      prices: displayedPrices,
-                                      onLoadMore: () => loadMoreItems(service),
-                                      hasMore,
-                                      isLoading: loadingMore[service] || false
-                                    }}
-                                    onItemsRendered={({ visibleStopIndex }) => {
-                                      // Carregar mais itens quando o usuário estiver próximo do final
-                                      // (5 itens antes do final da lista visível) e não estiver carregando
-                                      if (hasMore && !loadingMore[service] && visibleStopIndex >= displayedPrices.length - 5) {
-                                        loadMoreItems(service);
-                                      }
-                                    }}
-                                  >
-                                    {Row}
-                                  </List>
-                                ) : (
-                                  <div className="text-center py-8 text-slate-400">
-                                    <div className="w-12 h-12 mx-auto mb-3 rounded-xl bg-gradient-to-br from-gray-600/50 to-gray-700/50 flex items-center justify-center">
-                                      <Globe className="w-6 h-6 text-slate-400" />
-                                    </div>
-                                    <p className="text-sm font-medium text-slate-300 mb-1">Nenhum país disponível</p>
-                                    <p className="text-xs text-slate-500">para {SERVICE_NAME_MAP[service] || service.toUpperCase()}</p>
-                                  </div>
-                                );
-                              })()}
-                            </div>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
+                      <ServiceCard
+                        key={service}
+                        service={service}
+                        servicePrices={servicePrices}
+                        minPrice={minPrice}
+                        availableCountries={availableCountries}
+                      />
                     );
                   })}
+                  
+                  {/* Loading indicator for more services */}
+                  {isLoadingMoreServices && (
+                    <div className="col-span-full flex justify-center items-center py-8">
+                      <div className="flex items-center space-x-2 text-blue-400">
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-400"></div>
+                        <span>Carregando mais serviços...</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* Ver Mais Button */}
-              {allServices.length > servicesLimit && (
-                <div className="max-w-6xl mx-auto flex justify-center mt-6">
-                  <Button
-                    onClick={() => setServicesLimit(prev => Math.min(prev + 20, allServices.length))}
-                    className="bg-gray-700/50 hover:bg-gray-700/40 text-white px-6 py-2 rounded-lg font-medium shadow-md transition-all duration-200"
-                  >
-                    Ver Mais Serviços ({allServices.length - servicesLimit} restantes)
-                  </Button>
-                </div>
-              )}
+              {/* Loading Indicators */}
+              <div className="max-w-6xl mx-auto flex flex-col items-center gap-4 mt-6">
+                {loadingMorePrices && (
+                  <div className="flex items-center space-x-2 text-blue-400 text-sm">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-400"></div>
+                    <span>Carregando mais dados...</span>
+                  </div>
+                )}
+                
+                {!hasMorePrices && !isLoadingMoreServices && allServices.length <= servicesLimit && (
+                  <div className="text-slate-400 text-sm">
+                    Todos os dados foram carregados
+                  </div>
+                )}
+              </div>
             </>
           )}
         </div>
