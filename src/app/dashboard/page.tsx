@@ -62,9 +62,6 @@ export default function DashboardPage() {
   const [loadingMorePrices, setLoadingMorePrices] = useState(false);
   const [hasMorePrices, setHasMorePrices] = useState(true);
   const [isLoadingMoreServices, setIsLoadingMoreServices] = useState(false);
-  const [servicePricesCache, setServicePricesCache] = useState<Record<string, PriceData[]>>({});
-  const [loadingServicePrices, setLoadingServicePrices] = useState<Record<string, boolean>>({});
-  const [openDropdowns, setOpenDropdowns] = useState<Record<string, boolean>>({});
   const [searchTerm, setSearchTerm] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedService, setSelectedService] = useState<string | null>(null);
@@ -79,8 +76,6 @@ export default function DashboardPage() {
   const [pricesLoaded, setPricesLoaded] = useState(false);
   const [servicesLimit, setServicesLimit] = useState(6);
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
-  const [dropdownItemsToShow, setDropdownItemsToShow] = useState<Record<string, number>>({});
-  const [loadingMore, setLoadingMore] = useState<Record<string, boolean>>({});
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const loadMoreTimeoutRef = useRef<Record<string, NodeJS.Timeout | null>>({});
   const MAX_ACTIVATION_AGE = 20 * 60 * 1000;
@@ -142,11 +137,10 @@ export default function DashboardPage() {
     const map: Record<string, Array<PriceData>> = {};
     const servicesToMap = debouncedSearchTerm ? allServices : services;
     servicesToMap.forEach((service) => {
-      // Usar cache se disponível, senão usar dados gerais
-      map[service] = servicePricesCache[service] || prices.filter((item) => item.service === service);
+      map[service] = prices.filter((item) => item.service === service);
     });
     return map;
-  }, [allServices, services, prices, debouncedSearchTerm, servicePricesCache]);
+  }, [allServices, services, prices, debouncedSearchTerm]);
 
   const filteredServicePrices = useMemo(() => {
     return filteredServices.reduce((acc, service) => {
@@ -159,40 +153,6 @@ export default function DashboardPage() {
     }, {} as Record<string, PriceData[]>);
   }, [filteredServices, servicePricesMap, countrySearchTerm, countryMap]);
 
-  // Função para resetar o contador de itens quando abrir/fechar dropdown
-  const resetDropdownItems = (service: string) => {
-    setDropdownItemsToShow(prev => ({
-      ...prev,
-      [service]: ITEMS_PER_PAGE
-    }));
-  };
-
-  // Função para carregar mais itens com debounce
-  const loadMoreItems = (service: string) => {
-    // Evitar múltiplas chamadas simultâneas
-    if (loadingMore[service]) return;
-    
-    // Limpar timeout anterior se existir
-    if (loadMoreTimeoutRef.current[service]) {
-      clearTimeout(loadMoreTimeoutRef.current[service]!);
-    }
-    
-    // Definir estado de carregamento
-    setLoadingMore(prev => ({ ...prev, [service]: true }));
-    
-    // Debounce de 300ms para evitar múltiplas chamadas
-    loadMoreTimeoutRef.current[service] = setTimeout(() => {
-      setDropdownItemsToShow(prev => ({
-        ...prev,
-        [service]: (prev[service] || ITEMS_PER_PAGE) + ITEMS_PER_PAGE
-      }));
-      
-      // Limpar estado de carregamento após um pequeno delay
-      setTimeout(() => {
-        setLoadingMore(prev => ({ ...prev, [service]: false }));
-      }, 500);
-    }, 300);
-  };
 
   const handleUnauthorized = useCallback(() => {
     setUser(null);
@@ -270,38 +230,6 @@ export default function DashboardPage() {
     }
   }, [isLoadingMoreServices, allServices.length, servicesLimit]);
 
-  const loadServicePrices = useCallback(async (service: string, offset: number = 0) => {
-    if (loadingServicePrices[service]) return;
-    
-    try {
-      setLoadingServicePrices(prev => ({ ...prev, [service]: true }));
-      
-      const response = await api.get<PriceData[]>('/credits/prices/filter', { 
-        params: { 
-          service,
-          limit: 50, // Carregar apenas 50 países por vez
-          offset,
-          sort: 'priceBrl:asc'
-        } 
-      });
-      
-      setServicePricesCache(prev => ({
-        ...prev,
-        [service]: offset === 0 ? response.data : [...(prev[service] || []), ...response.data]
-      }));
-      
-    } catch (error: unknown) {
-      toast.error(`Falha ao carregar países para ${service}`);
-      if (error && typeof error === 'object' && 'response' in error) {
-        const apiError = error as { response?: { status?: number } };
-        if (apiError.response?.status === 401) {
-          handleUnauthorized();
-        }
-      }
-    } finally {
-      setLoadingServicePrices(prev => ({ ...prev, [service]: false }));
-    }
-  }, [loadingServicePrices, handleUnauthorized]);
 
 
   const fetchRecentActivations = useCallback(async () => {
@@ -467,7 +395,8 @@ export default function DashboardPage() {
       }
       
       // Limpar timeouts de carregamento
-      Object.values(loadMoreTimeoutRef.current).forEach(timeout => {
+      const timeouts = loadMoreTimeoutRef.current;
+      Object.values(timeouts).forEach(timeout => {
         if (timeout) clearTimeout(timeout);
       });
     };
@@ -594,7 +523,6 @@ export default function DashboardPage() {
     const [countrySearchTerm, setCountrySearchTerm] = useState('');
     const [hasLoadedAllCountries, setHasLoadedAllCountries] = useState(false);
     const [localServicePrices, setLocalServicePrices] = useState<PriceData[]>(servicePrices);
-    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
     // Sincronizar estado local com servicePrices quando mudar
     useEffect(() => {
@@ -653,7 +581,7 @@ export default function DashboardPage() {
         countryMap[item.country]?.toLowerCase().includes(countrySearchTerm.toLowerCase()) ||
         item.country.toLowerCase().includes(countrySearchTerm.toLowerCase())
       );
-    }, [localServicePrices, countrySearchTerm, countryMap]);
+    }, [localServicePrices, countrySearchTerm]);
 
     return (
       <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 rounded-xl p-4 border border-gray-700/30 hover:bg-gray-800/70 transition-all duration-200 shadow-md">
@@ -690,7 +618,6 @@ export default function DashboardPage() {
           </div>
         </div>
         <DropdownMenu onOpenChange={(open) => {
-          setIsDropdownOpen(open);
           if (open) {
             resetDropdownItems();
             setCountrySearchTerm('');
@@ -758,7 +685,6 @@ export default function DashboardPage() {
               {(() => {
                 const itemsToShow = dropdownItemsToShow;
                 const displayedPrices = filteredPrices.slice(0, itemsToShow);
-                const hasMore = itemsToShow < filteredPrices.length;
 
                 return filteredPrices.length > 0 ? (
                   <div className="max-h-[300px] overflow-y-auto" onScroll={handleScroll}>
@@ -1114,12 +1040,7 @@ export default function DashboardPage() {
 
               {/* Loading Indicators */}
               <div className="max-w-6xl mx-auto flex flex-col items-center gap-4 mt-6">
-                {loadingMorePrices && (
-                  <div className="flex items-center space-x-2 text-blue-400 text-sm">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-400"></div>
-                    <span>Carregando mais dados...</span>
-                  </div>
-                )}
+
                 
                 {!hasMorePrices && !isLoadingMoreServices && allServices.length <= servicesLimit && (
                   <div className="text-slate-400 text-sm">
