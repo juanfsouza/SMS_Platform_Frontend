@@ -526,6 +526,7 @@ export default function DashboardPage() {
     const [isSearching, setIsSearching] = useState(false);
     const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
     const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
 
     // Sincronizar estado local com servicePrices quando mudar
     useEffect(() => {
@@ -533,6 +534,18 @@ export default function DashboardPage() {
         setLocalServicePrices(servicePrices);
       }
     }, [servicePrices, localServicePrices.length]);
+
+    // Remover duplicatas dos preços locais
+    useEffect(() => {
+      if (localServicePrices.length > 0) {
+        const uniquePrices = localServicePrices.filter((price, index, self) => 
+          index === self.findIndex(p => p.service === price.service && p.country === price.country)
+        );
+        if (uniquePrices.length !== localServicePrices.length) {
+          setLocalServicePrices(uniquePrices);
+        }
+      }
+    }, [localServicePrices]);
 
     // Debounce da busca
     useEffect(() => {
@@ -550,14 +563,6 @@ export default function DashboardPage() {
         }
       };
     }, [countrySearchTerm]);
-
-    // Carregar todos os países quando usuário começar a pesquisar
-    useEffect(() => {
-      if (debouncedSearchTerm.trim() && !hasLoadedAllCountries && !isSearching) {
-        setIsSearching(true);
-        loadAllCountries();
-      }
-    }, [debouncedSearchTerm, hasLoadedAllCountries, isSearching]);
 
     const resetDropdownItems = () => {
       setDropdownItemsToShow(ITEMS_PER_PAGE);
@@ -584,7 +589,14 @@ export default function DashboardPage() {
           setHasLoadedAllCountries(true);
         } else {
           // Atualizar apenas o estado local, não o cache global
-          setLocalServicePrices(prev => [...prev, ...response.data]);
+          setLocalServicePrices(prev => {
+            const combined = [...prev, ...response.data];
+            // Remover duplicatas
+            const uniquePrices = combined.filter((price, index, self) => 
+              index === self.findIndex(p => p.service === price.service && p.country === price.country)
+            );
+            return uniquePrices;
+          });
           setDropdownItemsToShow(prev => prev + ITEMS_PER_PAGE);
         }
       } catch (error) {
@@ -594,7 +606,7 @@ export default function DashboardPage() {
       }
     };
 
-    const loadAllCountries = async () => {
+    const loadAllCountries = useCallback(async () => {
       if (loadingMore || hasLoadedAllCountries) return;
       
       setLoadingMore(true);
@@ -611,17 +623,44 @@ export default function DashboardPage() {
         });
         
         if (response.data.length > 0) {
-          setLocalServicePrices(response.data);
+          // Remover duplicatas antes de definir
+          const uniquePrices = response.data.filter((price, index, self) => 
+            index === self.findIndex(p => p.service === price.service && p.country === price.country)
+          );
+          
+          setLocalServicePrices(uniquePrices);
           setHasLoadedAllCountries(true);
-          setDropdownItemsToShow(response.data.length);
+          setDropdownItemsToShow(uniquePrices.length);
         }
       } catch (error) {
         console.error('Erro ao carregar todos os países:', error);
       } finally {
         setLoadingMore(false);
         setIsSearching(false);
+        // Restaurar foco no input após carregamento
+        if (inputRef.current) {
+          setTimeout(() => {
+            inputRef.current?.focus();
+          }, 50);
+        }
       }
-    };
+    }, [loadingMore, hasLoadedAllCountries, service]);
+
+    // Carregar todos os países quando usuário começar a pesquisar
+    useEffect(() => {
+      if (debouncedSearchTerm.trim() && !hasLoadedAllCountries && !isSearching) {
+        // Usar setTimeout para evitar re-renderização imediata que causa perda de foco
+        const timeoutId = setTimeout(() => {
+          // Verificar se o input ainda está focado antes de carregar
+          if (inputRef.current && document.activeElement === inputRef.current) {
+            setIsSearching(true);
+            loadAllCountries();
+          }
+        }, 200);
+        
+        return () => clearTimeout(timeoutId);
+      }
+    }, [debouncedSearchTerm, hasLoadedAllCountries, isSearching, loadAllCountries]);
 
     // Auto-load mais países quando o usuário rola no dropdown
     const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
@@ -729,12 +768,19 @@ export default function DashboardPage() {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
                 <Input
+                  ref={inputRef}
                   type="text"
                   placeholder={isSearching ? "Carregando todos os países..." : "Pesquisar país..."}
                   value={countrySearchTerm}
                   onChange={(e) => setCountrySearchTerm(e.target.value)}
                   className="pl-10 h-10 bg-gray-700/50 border border-gray-600/50 text-white placeholder:text-slate-400 text-sm rounded-lg"
                   disabled={isSearching}
+                  onFocus={() => {
+                    // Manter foco no input mesmo durante carregamento
+                    if (inputRef.current) {
+                      inputRef.current.focus();
+                    }
+                  }}
                 />
               </div>
             </div>
