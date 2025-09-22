@@ -52,7 +52,7 @@ interface Activation {
   code: string | null;
 }
 
-const ITEMS_PER_PAGE = 20;
+const ITEMS_PER_PAGE = 50;
 
 export default function DashboardPage() {
   const { user, setUser } = useAuthStore();
@@ -523,6 +523,9 @@ export default function DashboardPage() {
     const [countrySearchTerm, setCountrySearchTerm] = useState('');
     const [hasLoadedAllCountries, setHasLoadedAllCountries] = useState(false);
     const [localServicePrices, setLocalServicePrices] = useState<PriceData[]>(servicePrices);
+    const [isSearching, setIsSearching] = useState(false);
+    const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+    const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     // Sincronizar estado local com servicePrices quando mudar
     useEffect(() => {
@@ -530,6 +533,31 @@ export default function DashboardPage() {
         setLocalServicePrices(servicePrices);
       }
     }, [servicePrices, localServicePrices.length]);
+
+    // Debounce da busca
+    useEffect(() => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+      
+      searchTimeoutRef.current = setTimeout(() => {
+        setDebouncedSearchTerm(countrySearchTerm);
+      }, 300);
+      
+      return () => {
+        if (searchTimeoutRef.current) {
+          clearTimeout(searchTimeoutRef.current);
+        }
+      };
+    }, [countrySearchTerm]);
+
+    // Carregar todos os países quando usuário começar a pesquisar
+    useEffect(() => {
+      if (debouncedSearchTerm.trim() && !hasLoadedAllCountries && !isSearching) {
+        setIsSearching(true);
+        loadAllCountries();
+      }
+    }, [debouncedSearchTerm, hasLoadedAllCountries, isSearching]);
 
     const resetDropdownItems = () => {
       setDropdownItemsToShow(ITEMS_PER_PAGE);
@@ -566,6 +594,35 @@ export default function DashboardPage() {
       }
     };
 
+    const loadAllCountries = async () => {
+      if (loadingMore || hasLoadedAllCountries) return;
+      
+      setLoadingMore(true);
+      
+      try {
+        // Carregar todos os países de uma vez para busca
+        const response = await api.get<PriceData[]>('/credits/prices/filter', { 
+          params: { 
+            service,
+            limit: 1000, // Limite alto para pegar todos os países
+            offset: 0,
+            sort: 'priceBrl:asc'
+          } 
+        });
+        
+        if (response.data.length > 0) {
+          setLocalServicePrices(response.data);
+          setHasLoadedAllCountries(true);
+          setDropdownItemsToShow(response.data.length);
+        }
+      } catch (error) {
+        console.error('Erro ao carregar todos os países:', error);
+      } finally {
+        setLoadingMore(false);
+        setIsSearching(false);
+      }
+    };
+
     // Auto-load mais países quando o usuário rola no dropdown
     const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
       const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
@@ -578,10 +635,10 @@ export default function DashboardPage() {
 
     const filteredPrices = useMemo(() => {
       return localServicePrices.filter((item) =>
-        countryMap[item.country]?.toLowerCase().includes(countrySearchTerm.toLowerCase()) ||
-        item.country.toLowerCase().includes(countrySearchTerm.toLowerCase())
+        countryMap[item.country]?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+        item.country.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
       );
-    }, [localServicePrices, countrySearchTerm]);
+    }, [localServicePrices, debouncedSearchTerm]);
 
     return (
       <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 rounded-xl p-4 border border-gray-700/30 hover:bg-gray-800/70 transition-all duration-200 shadow-md">
@@ -673,10 +730,11 @@ export default function DashboardPage() {
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
                 <Input
                   type="text"
-                  placeholder="Pesquisar país..."
+                  placeholder={isSearching ? "Carregando todos os países..." : "Pesquisar país..."}
                   value={countrySearchTerm}
                   onChange={(e) => setCountrySearchTerm(e.target.value)}
                   className="pl-10 h-10 bg-gray-700/50 border border-gray-600/50 text-white placeholder:text-slate-400 text-sm rounded-lg"
+                  disabled={isSearching}
                 />
               </div>
             </div>
@@ -741,7 +799,7 @@ export default function DashboardPage() {
                       <div className="flex justify-center items-center p-3">
                         <div className="flex items-center space-x-2 text-blue-400 text-sm">
                           <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-400"></div>
-                          <span>Carregando mais países...</span>
+                          <span>{isSearching ? "Carregando todos os países..." : "Carregando mais países..."}</span>
                         </div>
                       </div>
                     )}
