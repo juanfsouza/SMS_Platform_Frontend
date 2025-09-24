@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, memo, useRef } from 'react';
 import { useAuthStore } from '@/stores/auth';
 import { useRouter } from 'next/navigation';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -13,6 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import api from '@/lib/api';
 import { toast, Toaster } from 'sonner';
 import Navbar from '@/components/Navbar';
+import { SERVICE_NAME_MAP } from '@/data/services';
 import {
   RefreshCw,
   Users,
@@ -30,17 +31,182 @@ import {
   AlertCircle,
   Info,
   ShoppingCart,
+  Search,
+  ChevronLeft,
+  ChevronRight,
+  Filter,
+  Loader2,
+  MoreHorizontal,
+  ChevronsLeft,
+  ChevronsRight,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { debounce } from 'lodash';
+import { debounce, throttle } from 'lodash';
+import countriesData from '@/data/countries.json';
 
 // Definição do tipo Price
 interface Price {
   service: string;
+  serviceName?: string;
   country: string;
   priceBrl: number;
   priceUsd: number;
 }
+
+// Sistema de virtualização para grandes volumes de dados
+class VirtualizationManager {
+  private windowSize = 10; // Apenas 10 itens por vez
+  private cache = new Map<string, { data: any; timestamp: number }>();
+  private pendingRequests = new Map<string, Promise<any>>();
+
+  private generateKey(offset: number, service?: string, country?: string): string {
+    return `window_${offset}_${service || 'all'}_${country || 'all'}`;
+  }
+
+  private isExpired(entry: any): boolean {
+    return Date.now() - entry.timestamp > 5 * 60 * 1000; // 5 min TTL
+  }
+
+  async getWindow(offset: number, service?: string, country?: string): Promise<any> {
+    const key = this.generateKey(offset, service, country);
+    const entry = this.cache.get(key);
+    
+    if (entry && !this.isExpired(entry)) {
+      return entry.data;
+    }
+    
+    return null;
+  }
+
+  async setWindow(offset: number, data: any, service?: string, country?: string): Promise<void> {
+    const key = this.generateKey(offset, service, country);
+    this.cache.set(key, {
+      data,
+      timestamp: Date.now()
+    });
+  }
+
+  async getOrFetchWindow<T>(
+    offset: number, 
+    service: string | undefined, 
+    country: string | undefined,
+    fetchFn: () => Promise<T>
+  ): Promise<T> {
+    const key = this.generateKey(offset, service, country);
+    
+    // Verificar requisição pendente
+    if (this.pendingRequests.has(key)) {
+      return this.pendingRequests.get(key)!;
+    }
+
+    // Verificar cache
+    const cached = await this.getWindow(offset, service, country);
+    if (cached) {
+      return cached;
+    }
+
+    // Fazer requisição
+    const promise = fetchFn().then(async (data) => {
+      await this.setWindow(offset, data, service, country);
+      this.pendingRequests.delete(key);
+      return data;
+    }).catch((error) => {
+      this.pendingRequests.delete(key);
+      throw error;
+    });
+
+    this.pendingRequests.set(key, promise);
+    return promise;
+  }
+
+  clear(): void {
+    this.cache.clear();
+    this.pendingRequests.clear();
+  }
+
+  getStats(): { size: number; keys: string[] } {
+    return {
+      size: this.cache.size,
+      keys: Array.from(this.cache.keys())
+    };
+  }
+}
+
+// Função para converter código de país em nome
+const getCountryName = (countryCode: string): string => {
+  const code = countryCode.toString();
+  return countriesData[code as keyof typeof countriesData] || countryCode;
+};
+
+// Hook para paginação avançada
+const useAdvancedPagination = (totalItems: number, itemsPerPage: number = 20) => {
+  const [currentPage, setCurrentPage] = useState(1);
+  const [loading, setLoading] = useState(false);
+  
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  
+  // Prefetch das próximas páginas
+  const prefetchNext = useCallback((page: number) => {
+    if (page <= totalPages) {
+      // Lógica de prefetch será implementada no componente pai
+    }
+  }, [totalPages]);
+
+  const goToPage = useCallback((page: number) => {
+    if (page >= 1 && page <= totalPages && page !== currentPage) {
+      setCurrentPage(page);
+      prefetchNext(page + 1);
+    }
+  }, [currentPage, totalPages, prefetchNext]);
+
+  const nextPage = useCallback(() => {
+    goToPage(currentPage + 1);
+  }, [currentPage, goToPage]);
+
+  const prevPage = useCallback(() => {
+    goToPage(currentPage - 1);
+  }, [currentPage, goToPage]);
+
+  // Gerar array de páginas para exibição
+  const getVisiblePages = useMemo(() => {
+    const delta = 2;
+    const range = [];
+    const rangeWithDots = [];
+
+    for (let i = Math.max(2, currentPage - delta); i <= Math.min(totalPages - 1, currentPage + delta); i++) {
+      range.push(i);
+    }
+
+    if (currentPage - delta > 2) {
+      rangeWithDots.push(1, '...');
+    } else {
+      rangeWithDots.push(1);
+    }
+
+    rangeWithDots.push(...range);
+
+    if (currentPage + delta < totalPages - 1) {
+      rangeWithDots.push('...', totalPages);
+    } else {
+      rangeWithDots.push(totalPages);
+    }
+
+    return rangeWithDots.filter((page, index, array) => array.indexOf(page) === index);
+  }, [currentPage, totalPages]);
+
+  return {
+    currentPage,
+    totalPages,
+    loading,
+    setLoading,
+    goToPage,
+    nextPage,
+    prevPage,
+    getVisiblePages,
+    canGoNext: currentPage < totalPages,
+    canGoPrev: currentPage > 1
+  };
+};
 
 // Definição do tipo User
 interface User {
@@ -242,8 +408,8 @@ const UserRow = ({ userData, onBalanceUpdate }: { userData: User, onBalanceUpdat
   );
 };
 
-// Componente PriceRow otimizado
-const PriceRow = ({ price, onPriceUpdate }: { price: Price, onPriceUpdate: () => void }) => {
+// Componente PriceRow otimizado com memo
+const PriceRow = memo(({ price, onPriceUpdate }: { price: Price, onPriceUpdate: () => void }) => {
   const { user } = useAuthStore();
   const [localInputs, setLocalInputs] = useState({ priceBrl: '', priceUsd: '' });
   const [isUpdating, setIsUpdating] = useState(false);
@@ -282,11 +448,21 @@ const PriceRow = ({ price, onPriceUpdate }: { price: Price, onPriceUpdate: () =>
 
   return (
     <TableRow className="border-border/50 hover:bg-muted/50">
-      <TableCell className="font-medium">{price.service}</TableCell>
-      <TableCell>{price.country}</TableCell>
+      <TableCell className="font-medium">
+        <div className="flex flex-col">
+          <span className="font-medium">{price.serviceName || SERVICE_NAME_MAP[price.service] || price.service}</span>
+          <span className="text-xs text-muted-foreground">{price.service}</span>
+        </div>
+      </TableCell>
+      <TableCell>
+        <div className="flex flex-col">
+          <span className="font-medium">{getCountryName(price.country)}</span>
+          <span className="text-xs text-muted-foreground">({price.country})</span>
+        </div>
+      </TableCell>
       <TableCell>
         <div className="flex items-center gap-2">
-          <Badge variant="secondary" className="font-mono">
+          <Badge variant="secondary" className="font-mono text-white">
             R$ {price.priceBrl.toFixed(2)}
           </Badge>
           <Input
@@ -328,7 +504,86 @@ const PriceRow = ({ price, onPriceUpdate }: { price: Price, onPriceUpdate: () =>
       </TableCell>
     </TableRow>
   );
-};
+});
+
+// Componente Skeleton para loading
+const PriceTableSkeleton = () => (
+  <div className="space-y-3">
+    {Array.from({ length: 10 }).map((_, index) => (
+      <div key={index} className="flex items-center space-x-4 p-4 border rounded-lg">
+        <div className="h-4 bg-muted rounded w-24 animate-pulse" />
+        <div className="h-4 bg-muted rounded w-32 animate-pulse" />
+        <div className="h-6 bg-muted rounded w-20 animate-pulse" />
+        <div className="h-6 bg-muted rounded w-20 animate-pulse" />
+      </div>
+    ))}
+  </div>
+);
+
+// Componente de paginação avançada
+const AdvancedPagination = memo(({ 
+  pagination, 
+  onPageChange, 
+  loading 
+}: { 
+  pagination: any; 
+  onPageChange: (page: number) => void; 
+  loading: boolean; 
+}) => (
+  <div className="flex items-center justify-between mt-6 pt-4 border-t">
+    <div className="text-sm text-muted-foreground flex items-center gap-4">
+      <span>
+        Página {pagination.currentPage} de {pagination.totalPages}
+      </span>
+      <div className="flex items-center gap-2">
+        <div className="w-2 h-2 bg-green-500 rounded-full" title="Cache ativo" />
+        <span className="text-xs">Performance otimizada</span>
+      </div>
+    </div>
+    
+    <div className="flex items-center gap-1">
+      <Button
+        onClick={() => onPageChange(pagination.currentPage - 1)}
+        disabled={!pagination.canGoPrev || loading}
+        variant="outline"
+        size="sm"
+        className="h-8 w-8 p-0"
+      >
+        <ChevronLeft className="w-4 h-4" />
+      </Button>
+      
+      {pagination.getVisiblePages.map((page: any, index: number) => (
+        <div key={index}>
+          {page === '...' ? (
+            <div className="px-2 py-1">
+              <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
+            </div>
+          ) : (
+            <Button
+              onClick={() => onPageChange(page as number)}
+              disabled={loading}
+              variant={pagination.currentPage === page ? "default" : "outline"}
+              size="sm"
+              className="h-8 w-8 p-0"
+            >
+              {page}
+            </Button>
+          )}
+        </div>
+      ))}
+      
+      <Button
+        onClick={() => onPageChange(pagination.currentPage + 1)}
+        disabled={!pagination.canGoNext || loading}
+        variant="outline"
+        size="sm"
+        className="h-8 w-8 p-0"
+      >
+        <ChevronRight className="w-4 h-4" />
+      </Button>
+    </div>
+  </div>
+));
 
 // Componente PurchaseLogRow
 const PurchaseLogRow = ({
@@ -417,6 +672,23 @@ export default function AdminConfigPage() {
   const [logsPage, setLogsPage] = useState(1);
   const [userEmailFilter, setUserEmailFilter] = useState<string>(''); // Changed to userEmailFilter
   const logsLimit = 20;
+  
+  // Estados para virtualização de grandes volumes
+  const [pricesTotal, setPricesTotal] = useState(0);
+  const [serviceFilter, setServiceFilter] = useState<string>('');
+  const [countryFilter, setCountryFilter] = useState<string>('');
+  const [currentOffset, setCurrentOffset] = useState(0);
+  const [windowSize] = useState(10); // Apenas 10 itens por vez
+  
+  // Sistema de virtualização
+  const virtualizationManager = useMemo(() => new VirtualizationManager(), []);
+  const [cacheStats, setCacheStats] = useState<{ size: number; keys: string[] }>({ size: 0, keys: [] });
+  
+  // Estados de loading otimizados para virtualização
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [isCreditsTabLoading, setIsCreditsTabLoading] = useState(false);
+  const [creditsTabInitialized, setCreditsTabInitialized] = useState(false);
+  const [isLoadingWindow, setIsLoadingWindow] = useState(false);
   const [loading, setLoading] = useState<LoadingState>({
     initial: true,
     users: false,
@@ -466,22 +738,131 @@ export default function AdminConfigPage() {
     }
   }, [user?.token, loading.users]);
 
-  const loadPricesData = useCallback(async () => {
-    if (!user?.token || loading.prices) return;
+  // Função de carregamento com virtualização - apenas uma janela de 10 itens
+  const loadPricesWindow = useCallback(async (offset: number = currentOffset, service?: string, country?: string) => {
+    if (!user?.token || isLoadingWindow) return;
 
+    setIsLoadingWindow(true);
     setLoading(prev => ({ ...prev, prices: true }));
+
     try {
-      const pricesResponse = await api.get('/credits/prices', {
-        headers: { Authorization: `Bearer ${user.token}` },
-        params: { limit: 20, offset: 0 }
-      });
-      setPrices(pricesResponse.data);
-    } catch {
-      toast.error('Falha ao carregar preços');
+      const fetchData = async () => {
+        // Usar endpoint otimizado do backend
+        let endpoint = '/credits/prices';
+        const params: any = {
+          limit: windowSize, // Apenas 10 itens por vez
+          offset: offset,
+          includeTotal: 'true' // Solicitar total do backend
+        };
+        
+        // Se temos um filtro de serviço, usar o novo endpoint de filtro por nome
+        if (service) {
+          endpoint = '/credits/prices/filter-by-name';
+          params.serviceName = service;
+        } else if (country) {
+          endpoint = '/credits/prices/filter-by-country-name';
+          params.countryName = country;
+        }
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
+        try {
+          const response = await api.get(endpoint, {
+            headers: { Authorization: `Bearer ${user.token}` },
+            params,
+            signal: controller.signal
+          });
+          
+          clearTimeout(timeoutId);
+          return response.data;
+        } catch (error: any) {
+          clearTimeout(timeoutId);
+          if (error.name === 'AbortError') {
+            throw new Error('Timeout: Servidor muito lento');
+          }
+          throw error;
+        }
+      };
+
+      const data = await virtualizationManager.getOrFetchWindow(
+        offset, 
+        service, 
+        country, 
+        fetchData
+      );
+
+      // Backend agora retorna { prices: [], total: number } quando includeTotal=true
+      if (data && typeof data === 'object' && 'prices' in data) {
+        setPrices(data.prices || []);
+        setPricesTotal(data.total || 0);
+      } else {
+        // Fallback para formato antigo
+        setPrices(Array.isArray(data) ? data : []);
+        setPricesTotal(Array.isArray(data) ? data.length : 0);
+      }
+      setCacheStats(virtualizationManager.getStats());
+
+    } catch (error) {
+      console.error('Error loading prices window:', error);
+      toast.error('Falha ao carregar dados');
     } finally {
+      setIsLoadingWindow(false);
       setLoading(prev => ({ ...prev, prices: false }));
+      setIsInitialLoad(false);
     }
-  }, [user?.token, loading.prices]);
+  }, [user?.token, isLoadingWindow, currentOffset, windowSize, virtualizationManager]);
+
+  // Função específica para carregar dados da aba créditos com virtualização
+  const loadCreditsTabData = useCallback(async () => {
+    if (!user?.token || creditsTabInitialized || isCreditsTabLoading) return;
+
+    setIsCreditsTabLoading(true);
+    
+    try {
+      // Carregar apenas a primeira janela (10 itens)
+      setCurrentOffset(0);
+      await loadPricesWindow(0, serviceFilter || undefined, countryFilter || undefined);
+      setCreditsTabInitialized(true);
+    } catch (error) {
+      console.error('Failed to load credits tab data:', error);
+      toast.error('Falha ao carregar dados da aba créditos');
+    } finally {
+      setIsCreditsTabLoading(false);
+    }
+  }, [user?.token, creditsTabInitialized, isCreditsTabLoading, serviceFilter, countryFilter, loadPricesWindow]);
+
+  // Funções de navegação para virtualização
+  const goToNextWindow = useCallback(() => {
+    if (currentOffset + windowSize < pricesTotal && !isLoadingWindow) {
+      const newOffset = currentOffset + windowSize;
+      setCurrentOffset(newOffset);
+      loadPricesWindow(newOffset, serviceFilter || undefined, countryFilter || undefined);
+    }
+  }, [currentOffset, windowSize, pricesTotal, isLoadingWindow, serviceFilter, countryFilter, loadPricesWindow]);
+
+  const goToPrevWindow = useCallback(() => {
+    if (currentOffset > 0 && !isLoadingWindow) {
+      const newOffset = Math.max(0, currentOffset - windowSize);
+      setCurrentOffset(newOffset);
+      loadPricesWindow(newOffset, serviceFilter || undefined, countryFilter || undefined);
+    }
+  }, [currentOffset, windowSize, isLoadingWindow, serviceFilter, countryFilter, loadPricesWindow]);
+
+  const goToFirstWindow = useCallback(() => {
+    if (!isLoadingWindow) {
+      setCurrentOffset(0);
+      loadPricesWindow(0, serviceFilter || undefined, countryFilter || undefined);
+    }
+  }, [isLoadingWindow, serviceFilter, countryFilter, loadPricesWindow]);
+
+  const goToLastWindow = useCallback(() => {
+    if (!isLoadingWindow && pricesTotal > 0) {
+      const lastOffset = Math.max(0, pricesTotal - windowSize);
+      setCurrentOffset(lastOffset);
+      loadPricesWindow(lastOffset, serviceFilter || undefined, countryFilter || undefined);
+    }
+  }, [isLoadingWindow, pricesTotal, windowSize, serviceFilter, countryFilter, loadPricesWindow]);
 
   const loadWithdrawalsData = useCallback(async () => {
     if (!user?.token || loading.withdrawals) return;
@@ -564,14 +945,14 @@ export default function AdminConfigPage() {
       await api.post('/credits/refresh-prices', {}, {
         headers: { Authorization: `Bearer ${user.token}` }
       });
-      await loadPricesData();
+      await loadPricesWindow(currentOffset, serviceFilter || undefined, countryFilter || undefined);
       toast.success('Preços atualizados com sucesso');
     } catch {
       toast.error('Falha ao atualizar preços');
     } finally {
       setLoading(prev => ({ ...prev, prices: false }));
     }
-  }, [user?.token, loading.prices, loadPricesData]);
+  }, [user?.token, loading.prices, loadPricesWindow, currentOffset, serviceFilter, countryFilter]);
 
   const handleUpdateWithdrawalStatus = useCallback(async (withdrawalId: number, status: 'APPROVED' | 'CANCELLED') => {
     if (!user?.token) return;
@@ -652,8 +1033,33 @@ export default function AdminConfigPage() {
   }, [loadUsersData]);
 
   const handlePriceUpdate = useCallback(() => {
-    loadPricesData();
-  }, [loadPricesData]);
+    // Limpar cache quando preços são atualizados
+    virtualizationManager.clear();
+    setCacheStats(virtualizationManager.getStats());
+    loadPricesWindow(currentOffset, serviceFilter || undefined, countryFilter || undefined);
+  }, [loadPricesWindow, currentOffset, serviceFilter, countryFilter, virtualizationManager]);
+
+  // Funções de busca com botões
+  const handleServiceSearch = useCallback(() => {
+    setCurrentOffset(0);
+    virtualizationManager.clear();
+    loadPricesWindow(0, serviceFilter || undefined, countryFilter || undefined);
+  }, [serviceFilter, countryFilter, loadPricesWindow, virtualizationManager]);
+
+  const handleCountrySearch = useCallback(() => {
+    setCurrentOffset(0);
+    virtualizationManager.clear();
+    loadPricesWindow(0, serviceFilter || undefined, countryFilter || undefined);
+  }, [serviceFilter, countryFilter, loadPricesWindow, virtualizationManager]);
+
+  const clearFilters = useCallback(() => {
+    setServiceFilter('');
+    setCountryFilter('');
+    setCurrentOffset(0);
+    virtualizationManager.clear();
+    setCacheStats(virtualizationManager.getStats());
+    loadPricesWindow(0);
+  }, [loadPricesWindow, virtualizationManager]);
 
   // Utilitários memoizados
   const getStatusBadgeVariant = useMemo(() => (status: string) => {
@@ -694,6 +1100,13 @@ export default function AdminConfigPage() {
 
     fetchInitialData();
   }, [user, router, fetchInitialData]);
+
+  // Lazy loading otimizado para aba créditos (120k+ dados)
+  useEffect(() => {
+    // Não carrega automaticamente - apenas quando a aba for clicada
+  }, []);
+
+  // Não precisa de useEffect para paginação com virtualização
 
   useEffect(() => {
     if (logsPage > 1 && purchaseLogs.length === 0) {
@@ -748,7 +1161,9 @@ export default function AdminConfigPage() {
             className="w-full"
             onValueChange={(value) => {
               if (value === 'users' && users.length === 0) loadUsersData();
-              if (value === 'credits' && prices.length === 0) loadPricesData();
+              if (value === 'credits' && !creditsTabInitialized && !isCreditsTabLoading) {
+                loadCreditsTabData();
+              }
               if (value === 'affiliate' && withdrawalRequests.length === 0) loadWithdrawalsData();
               if (value === 'purchases' && purchaseLogs.length === 0) loadPurchaseLogs();
             }}
@@ -759,8 +1174,11 @@ export default function AdminConfigPage() {
                 Usuários
               </TabsTrigger>
               <TabsTrigger value="credits" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-medium">
-                <CreditCard className="w-4 h-4 mr-2" />
+                <CreditCard className={`w-4 h-4 mr-2 ${isCreditsTabLoading ? 'animate-pulse' : ''}`} />
                 Créditos
+                {isCreditsTabLoading && (
+                  <Loader2 className="w-3 h-3 ml-1 animate-spin" />
+                )}
               </TabsTrigger>
               <TabsTrigger value="affiliate" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-medium">
                 <UserPlus className="w-4 h-4 mr-2" />
@@ -890,7 +1308,7 @@ export default function AdminConfigPage() {
 
               <Card className="shadow-xl border-0 bg-card/80 backdrop-blur-lg">
                 <CardHeader className="pb-6">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div>
                       <CardTitle className="flex items-center gap-2">
                         <Banknote className="w-5 h-5 text-primary" />
@@ -900,50 +1318,223 @@ export default function AdminConfigPage() {
                         Preços atuais dos serviços por país com markup aplicado
                       </CardDescription>
                     </div>
-                    <Button
-                      onClick={loadPricesData}
-                      variant="outline"
-                      size="sm"
-                      disabled={loading.prices}
-                    >
-                      <RefreshCw className={`w-4 h-4 mr-2 ${loading.prices ? 'animate-spin' : ''}`} />
-                      Recarregar
-                    </Button>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <Button
+                        onClick={clearFilters}
+                        variant="outline"
+                        size="sm"
+                        className="h-9"
+                      >
+                        <Filter className="w-4 h-4 mr-2" />
+                        Limpar Filtros
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          virtualizationManager.clear();
+                          loadPricesWindow(currentOffset, serviceFilter || undefined, countryFilter || undefined);
+                        }}
+                        variant="outline"
+                        size="sm"
+                        disabled={isLoadingWindow}
+                        className="h-9"
+                      >
+                        <RefreshCw className={`w-4 h-4 mr-2 ${isLoadingWindow ? 'animate-spin' : ''}`} />
+                        Recarregar
+                      </Button>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <div className="w-2 h-2 bg-blue-500 rounded-full" />
+                        <span>Cache: {cacheStats.size} páginas</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Filtros de busca otimizados para grandes volumes */}
+                  <div className="mt-4">
+                    <div className="flex items-center gap-2 mb-3 text-sm text-muted-foreground">
+                    </div>
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <div className="flex-1">
+                        <Label htmlFor="serviceFilter" className="text-sm font-medium mb-2 block">
+                          Filtrar por Serviço
+                        </Label>
+                        <div className="flex gap-2">
+                          <div className="relative flex-1">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                            <Input
+                              id="serviceFilter"
+                              placeholder="Ex: WhatsApp, Telegram..."
+                              value={serviceFilter}
+                              onChange={(e) => setServiceFilter(e.target.value)}
+                              onKeyPress={(e) => e.key === 'Enter' && handleServiceSearch()}
+                              className="pl-10 h-9 text-sm"
+                            />
+                          </div>
+                          <Button
+                            onClick={handleServiceSearch}
+                            disabled={isLoadingWindow}
+                            size="sm"
+                            className="h-9 px-4"
+                          >
+                            <Search className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="flex-1">
+                        <Label htmlFor="countryFilter" className="text-sm font-medium mb-2 block">
+                          Filtrar por País
+                        </Label>
+                        <div className="flex gap-2">
+                          <div className="relative flex-1">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                            <Input
+                              id="countryFilter"
+                              placeholder="Ex: Brasil, Argentina..."
+                              value={countryFilter}
+                              onChange={(e) => setCountryFilter(e.target.value)}
+                              onKeyPress={(e) => e.key === 'Enter' && handleCountrySearch()}
+                              className="pl-10 h-9 text-sm"
+                            />
+                          </div>
+                          <Button
+                            onClick={handleCountrySearch}
+                            disabled={isLoadingWindow}
+                            size="sm"
+                            className="h-9 px-4"
+                          >
+                            <Search className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent>
-                  {loading.prices ? (
-                    <div className="flex items-center justify-center py-12">
-                      <RefreshCw className="w-6 h-6 animate-spin text-primary mr-2" />
-                      <span>Carregando preços...</span>
+                  {isCreditsTabLoading ? (
+                    <div className="flex flex-col items-center justify-center py-16 space-y-4">
+                      <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                      <div className="text-center">
+                        <h3 className="font-medium">Carregando dados de créditos...</h3>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Sistema otimizado - carregando apenas 10 registros por vez
+                        </p>
+                        <div className="mt-3 text-xs text-muted-foreground">
+                          ⚡ Backend otimizado com paginação real
+                        </div>
+                      </div>
                     </div>
+                  ) : isLoadingWindow ? (
+                    <PriceTableSkeleton />
                   ) : (
-                    <div className="overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow className="border-border/50">
-                            <TableHead>Serviço</TableHead>
-                            <TableHead>País</TableHead>
-                            <TableHead>Preço (BRL)</TableHead>
-                            <TableHead>Preço (USD)</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {prices.map((price, index) => (
-                            <PriceRow
-                              key={`${price.service}-${price.country}-${index}`}
-                              price={price}
-                              onPriceUpdate={handlePriceUpdate}
-                            />
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
+                    <>
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="border-border/50">
+                              <TableHead>Serviço</TableHead>
+                              <TableHead>País</TableHead>
+                              <TableHead>Preço (BRL)</TableHead>
+                              <TableHead>Preço (USD)</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {prices.map((price, index) => (
+                              <PriceRow
+                                key={`${price.service}-${price.country}-${index}`}
+                                price={price}
+                                onPriceUpdate={handlePriceUpdate}
+                              />
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                      
+                      {/* Aviso sobre virtualização */}
+                      {pricesTotal > 1000 && (
+                        <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                          <div className="flex items-center gap-2 text-green-800">
+                            <Info className="w-4 h-4" />
+                            <span className="font-medium">Sistema Otimizado Ativo</span>
+                          </div>
+                          <p className="text-sm text-green-700 mt-1">
+                            {pricesTotal.toLocaleString()} registros disponíveis. Backend otimizado com paginação real - carregando apenas {windowSize} itens por vez.
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Indicadores de performance com virtualização */}
+                      <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground">
+                        <div className="flex items-center gap-4">
+                          <span>📊 {prices.length} de {pricesTotal.toLocaleString()} preços</span>
+                          <span>⚡ Cache: {cacheStats.size} janelas</span>
+                          <span>🚀 Virtualização ativa</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 bg-green-500 rounded-full" />
+                          <span>Carregamento</span>
+                        </div>
+                      </div>
+                      
+                      {/* Controles de virtualização */}
+                      <div className="mt-6 flex items-center justify-between pt-4 border-t">
+                        <div className="text-sm text-muted-foreground">
+                          Mostrando {currentOffset + 1} a {Math.min(currentOffset + windowSize, pricesTotal)} de {pricesTotal.toLocaleString()} registros
+                        </div>
+                        
+                        <div className="flex items-center gap-2">
+                          <Button
+                            onClick={goToFirstWindow}
+                            disabled={currentOffset === 0 || isLoadingWindow}
+                            variant="outline"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                          >
+                            <ChevronsLeft className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            onClick={goToPrevWindow}
+                            disabled={currentOffset === 0 || isLoadingWindow}
+                            variant="outline"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                          >
+                            <ChevronLeft className="w-4 h-4" />
+                          </Button>
+                          
+                          <div className="px-3 py-1 bg-muted rounded text-sm font-medium">
+                            {Math.floor(currentOffset / windowSize) + 1} / {Math.ceil(pricesTotal / windowSize)}
+                          </div>
+                          
+                          <Button
+                            onClick={goToNextWindow}
+                            disabled={currentOffset + windowSize >= pricesTotal || isLoadingWindow}
+                            variant="outline"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                          >
+                            <ChevronRight className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            onClick={goToLastWindow}
+                            disabled={currentOffset + windowSize >= pricesTotal || isLoadingWindow}
+                            variant="outline"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                          >
+                            <ChevronsRight className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </>
                   )}
-                  {!loading.prices && prices.length === 0 && (
+                  {!loading.prices && prices.length === 0 && !isInitialLoad && (
                     <div className="text-center py-12 text-muted-foreground flex flex-col items-center gap-2">
                       <AlertCircle className="w-8 h-8 text-muted-foreground/50" />
-                      <p>Nenhum preço encontrado. Tente atualizar os preços.</p>
+                      <p>Nenhum preço encontrado.</p>
+                      {(serviceFilter || countryFilter) && (
+                        <Button onClick={clearFilters} variant="outline" size="sm" className="mt-2">
+                          Limpar filtros
+                        </Button>
+                      )}
                     </div>
                   )}
                 </CardContent>
