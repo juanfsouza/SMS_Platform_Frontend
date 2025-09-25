@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, memo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { useAuthStore } from '@/stores/auth';
 import { useRouter } from 'next/navigation';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -36,12 +36,11 @@ import {
   ChevronRight,
   Filter,
   Loader2,
-  MoreHorizontal,
   ChevronsLeft,
   ChevronsRight,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { debounce, throttle } from 'lodash';
+import { debounce } from 'lodash';
 import countriesData from '@/data/countries.json';
 
 // Definição do tipo Price
@@ -53,21 +52,33 @@ interface Price {
   priceUsd: number;
 }
 
+// Interface para dados da janela de virtualização
+interface WindowData {
+  prices: Price[];
+  total: number;
+}
+
+// Interface para entrada do cache
+interface CacheEntry {
+  data: WindowData;
+  timestamp: number;
+}
+
 // Sistema de virtualização para grandes volumes de dados
 class VirtualizationManager {
   private windowSize = 10; // Apenas 10 itens por vez
-  private cache = new Map<string, { data: any; timestamp: number }>();
-  private pendingRequests = new Map<string, Promise<any>>();
+  private cache = new Map<string, CacheEntry>();
+  private pendingRequests = new Map<string, Promise<WindowData>>();
 
   private generateKey(offset: number, service?: string, country?: string): string {
     return `window_${offset}_${service || 'all'}_${country || 'all'}`;
   }
 
-  private isExpired(entry: any): boolean {
+  private isExpired(entry: CacheEntry): boolean {
     return Date.now() - entry.timestamp > 5 * 60 * 1000; // 5 min TTL
   }
 
-  async getWindow(offset: number, service?: string, country?: string): Promise<any> {
+  async getWindow(offset: number, service?: string, country?: string): Promise<WindowData | null> {
     const key = this.generateKey(offset, service, country);
     const entry = this.cache.get(key);
     
@@ -78,7 +89,7 @@ class VirtualizationManager {
     return null;
   }
 
-  async setWindow(offset: number, data: any, service?: string, country?: string): Promise<void> {
+  async setWindow(offset: number, data: WindowData, service?: string, country?: string): Promise<void> {
     const key = this.generateKey(offset, service, country);
     this.cache.set(key, {
       data,
@@ -86,12 +97,12 @@ class VirtualizationManager {
     });
   }
 
-  async getOrFetchWindow<T>(
+  async getOrFetchWindow(
     offset: number, 
     service: string | undefined, 
     country: string | undefined,
-    fetchFn: () => Promise<T>
-  ): Promise<T> {
+    fetchFn: () => Promise<WindowData>
+  ): Promise<WindowData> {
     const key = this.generateKey(offset, service, country);
     
     // Verificar requisição pendente
@@ -138,75 +149,6 @@ const getCountryName = (countryCode: string): string => {
   return countriesData[code as keyof typeof countriesData] || countryCode;
 };
 
-// Hook para paginação avançada
-const useAdvancedPagination = (totalItems: number, itemsPerPage: number = 20) => {
-  const [currentPage, setCurrentPage] = useState(1);
-  const [loading, setLoading] = useState(false);
-  
-  const totalPages = Math.ceil(totalItems / itemsPerPage);
-  
-  // Prefetch das próximas páginas
-  const prefetchNext = useCallback((page: number) => {
-    if (page <= totalPages) {
-      // Lógica de prefetch será implementada no componente pai
-    }
-  }, [totalPages]);
-
-  const goToPage = useCallback((page: number) => {
-    if (page >= 1 && page <= totalPages && page !== currentPage) {
-      setCurrentPage(page);
-      prefetchNext(page + 1);
-    }
-  }, [currentPage, totalPages, prefetchNext]);
-
-  const nextPage = useCallback(() => {
-    goToPage(currentPage + 1);
-  }, [currentPage, goToPage]);
-
-  const prevPage = useCallback(() => {
-    goToPage(currentPage - 1);
-  }, [currentPage, goToPage]);
-
-  // Gerar array de páginas para exibição
-  const getVisiblePages = useMemo(() => {
-    const delta = 2;
-    const range = [];
-    const rangeWithDots = [];
-
-    for (let i = Math.max(2, currentPage - delta); i <= Math.min(totalPages - 1, currentPage + delta); i++) {
-      range.push(i);
-    }
-
-    if (currentPage - delta > 2) {
-      rangeWithDots.push(1, '...');
-    } else {
-      rangeWithDots.push(1);
-    }
-
-    rangeWithDots.push(...range);
-
-    if (currentPage + delta < totalPages - 1) {
-      rangeWithDots.push('...', totalPages);
-    } else {
-      rangeWithDots.push(totalPages);
-    }
-
-    return rangeWithDots.filter((page, index, array) => array.indexOf(page) === index);
-  }, [currentPage, totalPages]);
-
-  return {
-    currentPage,
-    totalPages,
-    loading,
-    setLoading,
-    goToPage,
-    nextPage,
-    prevPage,
-    getVisiblePages,
-    canGoNext: currentPage < totalPages,
-    canGoPrev: currentPage > 1
-  };
-};
 
 // Definição do tipo User
 interface User {
@@ -272,8 +214,8 @@ const UserRow = ({ userData, onBalanceUpdate }: { userData: User, onBalanceUpdat
   const [localInputs, setLocalInputs] = useState({ add: '', update: '' });
   const [isUpdating, setIsUpdating] = useState(false);
 
-  const debouncedInputChange = useCallback(
-    debounce((type: 'add' | 'update', value: string) => {
+  const debouncedInputChange = useMemo(
+    () => debounce((type: 'add' | 'update', value: string) => {
       setLocalInputs(prev => ({ ...prev, [type]: value }));
     }, 200),
     []
@@ -414,8 +356,8 @@ const PriceRow = memo(({ price, onPriceUpdate }: { price: Price, onPriceUpdate: 
   const [localInputs, setLocalInputs] = useState({ priceBrl: '', priceUsd: '' });
   const [isUpdating, setIsUpdating] = useState(false);
 
-  const debouncedInputChange = useCallback(
-    debounce((type: 'priceBrl' | 'priceUsd', value: string) => {
+  const debouncedInputChange = useMemo(
+    () => debounce((type: 'priceBrl' | 'priceUsd', value: string) => {
       setLocalInputs(prev => ({ ...prev, [type]: value }));
     }, 200),
     []
@@ -506,6 +448,8 @@ const PriceRow = memo(({ price, onPriceUpdate }: { price: Price, onPriceUpdate: 
   );
 });
 
+PriceRow.displayName = 'PriceRow';
+
 // Componente Skeleton para loading
 const PriceTableSkeleton = () => (
   <div className="space-y-3">
@@ -520,70 +464,6 @@ const PriceTableSkeleton = () => (
   </div>
 );
 
-// Componente de paginação avançada
-const AdvancedPagination = memo(({ 
-  pagination, 
-  onPageChange, 
-  loading 
-}: { 
-  pagination: any; 
-  onPageChange: (page: number) => void; 
-  loading: boolean; 
-}) => (
-  <div className="flex items-center justify-between mt-6 pt-4 border-t">
-    <div className="text-sm text-muted-foreground flex items-center gap-4">
-      <span>
-        Página {pagination.currentPage} de {pagination.totalPages}
-      </span>
-      <div className="flex items-center gap-2">
-        <div className="w-2 h-2 bg-green-500 rounded-full" title="Cache ativo" />
-        <span className="text-xs">Performance otimizada</span>
-      </div>
-    </div>
-    
-    <div className="flex items-center gap-1">
-      <Button
-        onClick={() => onPageChange(pagination.currentPage - 1)}
-        disabled={!pagination.canGoPrev || loading}
-        variant="outline"
-        size="sm"
-        className="h-8 w-8 p-0"
-      >
-        <ChevronLeft className="w-4 h-4" />
-      </Button>
-      
-      {pagination.getVisiblePages.map((page: any, index: number) => (
-        <div key={index}>
-          {page === '...' ? (
-            <div className="px-2 py-1">
-              <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
-            </div>
-          ) : (
-            <Button
-              onClick={() => onPageChange(page as number)}
-              disabled={loading}
-              variant={pagination.currentPage === page ? "default" : "outline"}
-              size="sm"
-              className="h-8 w-8 p-0"
-            >
-              {page}
-            </Button>
-          )}
-        </div>
-      ))}
-      
-      <Button
-        onClick={() => onPageChange(pagination.currentPage + 1)}
-        disabled={!pagination.canGoNext || loading}
-        variant="outline"
-        size="sm"
-        className="h-8 w-8 p-0"
-      >
-        <ChevronRight className="w-4 h-4" />
-      </Button>
-    </div>
-  </div>
-));
 
 // Componente PurchaseLogRow
 const PurchaseLogRow = ({
@@ -749,7 +629,7 @@ export default function AdminConfigPage() {
       const fetchData = async () => {
         // Usar endpoint otimizado do backend
         let endpoint = '/credits/prices';
-        const params: any = {
+        const params: Record<string, string | number> = {
           limit: windowSize, // Apenas 10 itens por vez
           offset: offset,
           includeTotal: 'true' // Solicitar total do backend
@@ -776,9 +656,9 @@ export default function AdminConfigPage() {
           
           clearTimeout(timeoutId);
           return response.data;
-        } catch (error: any) {
+        } catch (error: unknown) {
           clearTimeout(timeoutId);
-          if (error.name === 'AbortError') {
+          if (error instanceof Error && error.name === 'AbortError') {
             throw new Error('Timeout: Servidor muito lento');
           }
           throw error;
@@ -798,8 +678,9 @@ export default function AdminConfigPage() {
         setPricesTotal(data.total || 0);
       } else {
         // Fallback para formato antigo
-        setPrices(Array.isArray(data) ? data : []);
-        setPricesTotal(Array.isArray(data) ? data.length : 0);
+        const pricesArray = Array.isArray(data) ? data : [];
+        setPrices(pricesArray);
+        setPricesTotal(pricesArray.length);
       }
       setCacheStats(virtualizationManager.getStats());
 
