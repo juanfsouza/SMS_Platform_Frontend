@@ -23,6 +23,7 @@ import api from '@/lib/api';
 import { toast } from 'sonner';
 import Image from 'next/image';
 import FloatingButton from '@/components/FloatingButton';
+import ServiceImage from '@/components/ServiceImage';
 
 const DepositForm = dynamic(() => import('@/components/DepositForm'), {
   ssr: false,
@@ -74,8 +75,10 @@ export default function DashboardPage() {
   const [hasActivePolling, setHasActivePolling] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [pricesLoaded, setPricesLoaded] = useState(false);
-  const [servicesLimit, setServicesLimit] = useState(6);
+  const [servicesLimit, setServicesLimit] = useState(50);
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  const [allAvailableServices, setAllAvailableServices] = useState<string[]>([]);
+  const [serviceCountriesCount, setServiceCountriesCount] = useState<{ [service: string]: number }>({});
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const loadMoreTimeoutRef = useRef<Record<string, NodeJS.Timeout | null>>({});
   const MAX_ACTIVATION_AGE = 20 * 60 * 1000;
@@ -89,6 +92,15 @@ export default function DashboardPage() {
   }, []);
 
   const allServices = useMemo(() => {
+    // Usar serviços do banco de dados se disponíveis, senão usar dos preços carregados
+    if (allAvailableServices.length > 0) {
+      return allAvailableServices.sort((a, b) => {
+        const countriesA = new Set(prices.filter(p => p.service === a).map(p => p.country)).size;
+        const countriesB = new Set(prices.filter(p => p.service === b).map(p => p.country)).size;
+        return countriesB - countriesA; // Ordem decrescente (mais países primeiro)
+      });
+    }
+    
     if (!prices.length) return [];
     const serviceSet = new Set(prices.map(p => p.service));
     const services = Array.from(serviceSet);
@@ -99,7 +111,7 @@ export default function DashboardPage() {
       const countriesB = new Set(prices.filter(p => p.service === b).map(p => p.country)).size;
       return countriesB - countriesA; // Ordem decrescente (mais países primeiro)
     });
-  }, [prices]);
+  }, [prices, allAvailableServices]);
 
   const services = useMemo(() => {
     // Retornar apenas os primeiros serviços para melhor performance
@@ -114,7 +126,7 @@ export default function DashboardPage() {
     
     searchTimeoutRef.current = setTimeout(() => {
       setDebouncedSearchTerm(searchTerm);
-    }, 300);
+    }, 1000);
 
     return () => {
       if (searchTimeoutRef.current) {
@@ -123,8 +135,59 @@ export default function DashboardPage() {
     };
   }, [searchTerm]);
 
+  // Carregar preços para serviços encontrados na busca que não têm preços carregados
+  useEffect(() => {
+    if (!debouncedSearchTerm.trim() || !allAvailableServices.length) return;
+
+    const loadMissingPrices = async () => {
+      const filteredServices = allServices.filter((service) =>
+        (SERVICE_NAME_MAP[service] || service.toUpperCase())
+          .toLowerCase()
+          .includes(debouncedSearchTerm.toLowerCase())
+      );
+
+      // Verificar quais serviços não têm preços carregados
+      const servicesWithoutPrices = filteredServices.filter(service => {
+        const servicePrices = prices.filter(p => p.service === service);
+        return servicePrices.length === 0;
+      });
+
+      if (servicesWithoutPrices.length === 0) return;
+
+      console.log(`🔍 Carregando preços para ${servicesWithoutPrices.length} serviços encontrados na busca:`, servicesWithoutPrices);
+
+      // Carregar preços para cada serviço que não tem preços
+      const pricePromises = servicesWithoutPrices.map(async (service) => {
+        try {
+          const response = await api.get(`/credits/service-prices/${service}`, {
+            params: { limit: 1000 }
+          });
+          return response.data;
+        } catch (error) {
+          console.error(`❌ Erro ao carregar preços para ${service}:`, error);
+          return [];
+        }
+      });
+
+      const allNewPrices = await Promise.all(pricePromises);
+      const flatPrices = allNewPrices.flat();
+
+      if (flatPrices.length > 0) {
+        // Adicionar novos preços aos existentes (evitando duplicatas)
+        setPrices(prevPrices => {
+          const existingKeys = new Set(prevPrices.map(p => `${p.service}-${p.country}`));
+          const newPrices = flatPrices.filter(p => !existingKeys.has(`${p.service}-${p.country}`));
+          console.log(`✅ Adicionados ${newPrices.length} novos preços para busca`);
+          return [...prevPrices, ...newPrices];
+        });
+      }
+    };
+
+    loadMissingPrices();
+  }, [debouncedSearchTerm, allServices, prices, allAvailableServices]);
+
   const filteredServices = useMemo(() => {
-    // Se há termo de busca, filtrar todos os serviços, senão usar apenas os limitados
+    // Sempre usar allServices para busca, mas limitar quando não há busca
     const servicesToFilter = debouncedSearchTerm ? allServices : services;
     return servicesToFilter.filter((service) =>
       (SERVICE_NAME_MAP[service] || service.toUpperCase())
@@ -135,6 +198,7 @@ export default function DashboardPage() {
 
   const servicePricesMap = useMemo(() => {
     const map: Record<string, Array<PriceData>> = {};
+    // Sempre usar allServices para busca, mas limitar quando não há busca
     const servicesToMap = debouncedSearchTerm ? allServices : services;
     servicesToMap.forEach((service) => {
       map[service] = prices.filter((item) => item.service === service);
@@ -159,19 +223,49 @@ export default function DashboardPage() {
     router.push('/login');
   }, [setUser, router]);
 
+  const fetchAllServices = useCallback(async () => {
+    try {
+      const response = await api.get<{ services: string[] }>('/credits/all-services');
+      setAllAvailableServices(response.data.services);
+    } catch (error: unknown) {
+      console.error('Failed to load all services:', error);
+      if (error && typeof error === 'object' && 'response' in error) {
+        const apiError = error as { response?: { status?: number } };
+        if (apiError.response?.status === 401) {
+          handleUnauthorized();
+        }
+      }
+    }
+  }, [handleUnauthorized]);
+
+  const fetchServiceCountriesCount = useCallback(async () => {
+    try {
+      const response = await api.get<{ [service: string]: number }>('/credits/service-countries-count');
+      setServiceCountriesCount(response.data);
+    } catch (error: unknown) {
+      console.error('Failed to load service countries count:', error);
+      if (error && typeof error === 'object' && 'response' in error) {
+        const apiError = error as { response?: { status?: number } };
+        if (apiError.response?.status === 401) {
+          handleUnauthorized();
+        }
+      }
+    }
+  }, [handleUnauthorized]);
+
   const fetchPrices = useCallback(async () => {
     try {
       setIsLoading(true);
       // Carregar apenas os primeiros 1000 registros para melhor performance inicial
       const response = await api.get<PriceData[]>('/credits/prices/filter', { 
         params: { 
-          limit: 1000,
+          limit: 5000,
           sort: 'priceBrl:asc'
         } 
       });
       setPrices(response.data);
       setPricesLoaded(true);
-      setHasMorePrices(response.data.length === 1000);
+      setHasMorePrices(response.data.length === 5000);
     } catch (error: unknown) {
       toast.error('Falha ao carregar preços');
       if (error && typeof error === 'object' && 'response' in error) {
@@ -318,6 +412,10 @@ export default function DashboardPage() {
     // Carregar dados essenciais primeiro
     const loadEssentialData = async () => {
       try {
+        // Carregar todos os serviços disponíveis primeiro
+        fetchAllServices();
+        // Carregar contagem de países por serviço
+        fetchServiceCountriesCount();
         // Carregar preços em background para não bloquear a UI
         fetchPrices();
         // Carregar ativações em paralelo
@@ -328,7 +426,7 @@ export default function DashboardPage() {
     };
 
     loadEssentialData();
-  }, [user, router, fetchPrices, fetchRecentActivations]);
+  }, [user, router, fetchAllServices, fetchServiceCountriesCount, fetchPrices, fetchRecentActivations]);
 
   useEffect(() => {
     if (!user || !hasActivePolling) return;
@@ -402,9 +500,6 @@ export default function DashboardPage() {
     };
   }, []);
 
-  const getServiceImageUrl = (service: string) => {
-    return `https://smsactivate.s3.eu-central-1.amazonaws.com/assets/ico/${service}0.webp`;
-  };
 
   // Row component otimizado com memo mais específico
   const Row = React.memo(({
@@ -555,7 +650,7 @@ export default function DashboardPage() {
       
       searchTimeoutRef.current = setTimeout(() => {
         setDebouncedSearchTerm(countrySearchTerm);
-      }, 300);
+      }, 1000);
       
       return () => {
         if (searchTimeoutRef.current) {
@@ -684,24 +779,17 @@ export default function DashboardPage() {
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center space-x-3 flex-1 min-w-0">
             <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-blue-500/20">
-              <Image
-                src={getServiceImageUrl(service)}
-                alt={SERVICE_NAME_MAP[service] || service.toUpperCase()}
+              <ServiceImage
+                service={service}
                 width={40}
                 height={40}
                 className="object-contain"
-                onError={(e) => {
-                  e.currentTarget.src = 'https://smsactivate.s3.eu-central-1.amazonaws.com/assets/ico/other0.webp';
-                }}
               />
             </div>
             <div className="min-w-0 flex-1">
               <h3 className="font-semibold text-sm text-white mb-1 truncate">
                 {SERVICE_NAME_MAP[service] || service.toUpperCase()}
               </h3>
-              <div className="text-slate-400 text-xs mb-1">
-                {Math.floor(Math.random() * 1000000).toLocaleString()}
-              </div>
               <div className="text-slate-400 text-xs flex items-center space-x-1">
                 <Globe className="w-3 h-3 flex-shrink-0" />
                 <span className="truncate">{availableCountries} países</span>
@@ -748,15 +836,11 @@ export default function DashboardPage() {
               </button>
               <div className="flex items-center gap-3 mb-3">
                 <div className="p-2 rounded-lg bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-blue-500/30">
-                  <Image
-                    src={getServiceImageUrl(service)}
-                    alt={SERVICE_NAME_MAP[service] || service.toUpperCase()}
+                  <ServiceImage
+                    service={service}
                     width={20}
                     height={20}
                     className="object-contain"
-                    onError={(e) => {
-                      e.currentTarget.src = 'https://smsactivate.s3.eu-central-1.amazonaws.com/assets/ico/other0.webp';
-                    }}
                   />
                 </div>
                 <div>
@@ -1036,15 +1120,11 @@ export default function DashboardPage() {
                       >
                         <div className="flex items-center space-x-4">
                           <div className="w-12 h-12 rounded-xl flex items-center justify-center">
-                            <Image
-                              src={getServiceImageUrl(activation.service)}
-                              alt={SERVICE_NAME_MAP[activation.service] || activation.service.toUpperCase()}
+                            <ServiceImage
+                              service={activation.service}
                               width={48}
                               height={48}
                               className="object-contain"
-                              onError={(e) => {
-                                e.currentTarget.src = 'https://smsactivate.s3.eu-central-1.amazonaws.com/assets/ico/other0.webp';
-                              }}
                             />
                           </div>
                           <div>
@@ -1117,7 +1197,7 @@ export default function DashboardPage() {
                   {filteredServices.map((service) => {
                     const servicePrices = filteredServicePrices[service] || [];
                     const minPrice = servicePrices.length > 0 ? Math.min(...servicePrices.map((p) => p.priceBrl)) : 0;
-                    const availableCountries = servicePrices.length;
+                    const availableCountries = serviceCountriesCount[service] || servicePrices.length;
 
                     return (
                       <ServiceCard
