@@ -1,5 +1,5 @@
 // Índice de imagens dos serviços
-export const SERVICE_IMAGES = {
+export const SERVICE_IMAGES: { [key: string]: string } = {
   'wa': '/images/services/wa.webp',
   'go': '/images/services/go.webp',
   'ig': '/images/services/ig.webp',
@@ -93,7 +93,6 @@ export const SERVICE_IMAGES = {
   'aka': '/images/services/aka.webp',
   'im': '/images/services/im.webp',
   'fu': '/images/services/fu.webp',
-  'tn': '/images/services/tn.webp',
   'ee': '/images/services/ee.webp',
   'zk': '/images/services/zk.webp',
   'apq': '/images/services/apq.webp',
@@ -671,7 +670,6 @@ export const SERVICE_IMAGES = {
   'rh': '/images/services/rh.webp',
   'aab': '/images/services/aab.webp',
   'acj': '/images/services/acj.webp',
-  'an': '/images/services/an.webp',
   'ark': '/images/services/ark.webp',
   'axu': '/images/services/axu.webp',
   'bba': '/images/services/bba.webp',
