@@ -145,7 +145,7 @@ export default function DashboardPage() {
           .toLowerCase()
           .includes(debouncedSearchTerm.toLowerCase())
       );
-
+      
       // Verificar quais serviços não têm preços carregados
       const servicesWithoutPrices = filteredServices.filter(service => {
         const servicePrices = prices.filter(p => p.service === service);
